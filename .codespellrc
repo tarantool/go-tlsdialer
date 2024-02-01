@@ -1,0 +1,5 @@
+[codespell]
+skip = */testdata,./LICENSE
+ignore-words-list = gost
+count =
+quiet-level = 3
