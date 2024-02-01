@@ -1,0 +1,28 @@
+run:
+  timeout: 3m
+
+linters:
+  enable:
+    - errorlint
+    - forbidigo
+    - gocritic
+    - godot
+    - goimports
+    - lll
+    - reassign
+    - revive
+    - stylecheck
+    - testpackage
+    - unconvert
+    - unused
+
+linters-settings:
+  lll:
+    line-length: 100
+    tab-width: 4
+
+issues:
+  exclude-rules:
+    - linters:
+      - lll
+      source: "\t?// *(see )?https://"
