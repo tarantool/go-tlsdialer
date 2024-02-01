@@ -10,6 +10,9 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ### Added
 
+* `OpenSSLDialer` type to use SSL transport for `tarantool/go-tarantool/v2`
+  connection (#1).
+
 ### Changed
 
 ### Removed
