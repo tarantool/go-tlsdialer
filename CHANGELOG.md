@@ -10,11 +10,16 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ### Added
 
-* `OpenSSLDialer` type to use SSL transport for `tarantool/go-tarantool/v2`
-  connection (#1).
-
 ### Changed
 
-### Removed
-
 ### Fixed
+
+## [1.0.0] - 2024-02-12
+
+The first release of the library allows us to extract the dependency on
+OpenSSL from the connector [go-tarantool](https://pkg.go.dev/github.com/tarantool/go-tarantool/v2).
+
+### Added
+
+* `OpenSSLDialer` type to use SSL transport for `tarantool/go-tarantool/v2`
+  connection (#1).
