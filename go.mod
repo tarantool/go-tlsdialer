@@ -4,7 +4,7 @@ require (
 	github.com/stretchr/testify v1.7.1
 	github.com/tarantool/go-iproto v1.0.0
 	github.com/tarantool/go-openssl v1.0.0
-	github.com/tarantool/go-tarantool/v2 v2.0.0-20240208121257-f33032e7d0ac
+	github.com/tarantool/go-tarantool/v2 v2.0.0
 )
 
 require (
