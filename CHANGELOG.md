@@ -14,6 +14,8 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ### Fixed
 
+- Testing job fail at `macos` stages, bump ci actions and tarantool installer versions.
+
 ## [1.0.0] - 2024-02-12
 
 The first release of the library allows us to extract the dependency on

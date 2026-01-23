@@ -15,13 +15,13 @@ jobs:
       - uses: actions/checkout@master
 
       - name: Setup Tarantool
-        uses: tarantool/setup-tarantool@v2
+        uses: tarantool/setup-tarantool@v3
         with:
-          tarantool-version: '2.8'
+          tarantool-version: '3.5'
 
       - name: Setup tt
         run: |
-          curl -L https://tarantool.io/release/2/installer.sh | sudo bash
+          curl -L https://tarantool.io/release/3/installer.sh | sudo bash
           sudo apt install -y tt
           tt version
 
