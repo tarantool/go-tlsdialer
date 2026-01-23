@@ -26,7 +26,7 @@ func (d openSSLDialer) Dial(ctx context.Context,
 	conn := new(ttConn)
 
 	network, address := parseAddress(d.address)
-	conn.net, err = sslDialContext(ctx, network, address, opts{
+	conn.net, conn.sslCtx, err = sslDialContext(ctx, network, address, opts{
 		KeyFile:      d.sslKeyFile,
 		CertFile:     d.sslCertFile,
 		CaFile:       d.sslCaFile,

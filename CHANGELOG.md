@@ -17,6 +17,8 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 ### Fixed
 
 - Testing job fail at `macos` stages, bump ci actions and tarantool installer versions.
+- Memory leak that occurred when a connection could not be established
+  (TNTP-5472).
 
 ## [1.0.0] - 2024-02-12
 
