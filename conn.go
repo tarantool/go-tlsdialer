@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/tarantool/go-openssl"
 	"github.com/tarantool/go-tarantool/v2"
 )
 
@@ -12,6 +13,7 @@ type ttConn struct {
 	net    net.Conn
 	reader io.Reader
 	writer writeFlusher
+	sslCtx *openssl.Ctx
 }
 
 // writeFlusher is the interface that groups the basic Write and Flush methods.
@@ -52,7 +54,10 @@ func (c *ttConn) Flush() error {
 
 // Close makes ttConn satisfy the Conn interface.
 func (c *ttConn) Close() error {
-	return c.net.Close()
+	errConn := c.net.Close()
+	errCtx := c.sslCtx.Close()
+
+	return errors.Join(errConn, errCtx)
 }
 
 // Greeting makes ttConn satisfy the Conn interface.

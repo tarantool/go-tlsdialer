@@ -12,13 +12,18 @@ import (
 )
 
 func sslDialContext(ctx context.Context, network, address string,
-	sslOpts opts) (connection net.Conn, err error) {
-	var sslCtx *openssl.Ctx
+	sslOpts opts) (connection net.Conn, sslCtx *openssl.Ctx, err error) {
 	if sslCtx, err = sslCreateContext(sslOpts); err != nil {
 		return
 	}
 
-	return openssl.DialContext(ctx, network, address, sslCtx, 0)
+	connection, err = openssl.DialContext(ctx, network, address, sslCtx, 0)
+	if err != nil {
+		sslCtx.Close()
+		return
+	}
+
+	return
 }
 
 func sslCreateContext(sslOpts opts) (sslCtx *openssl.Ctx, err error) {
@@ -32,6 +37,7 @@ func sslCreateContext(sslOpts opts) (sslCtx *openssl.Ctx, err error) {
 
 	if sslOpts.CertFile != "" {
 		if err = sslLoadCert(sslCtx, sslOpts.CertFile); err != nil {
+			sslCtx.Close()
 			return
 		}
 	}
@@ -39,12 +45,14 @@ func sslCreateContext(sslOpts opts) (sslCtx *openssl.Ctx, err error) {
 	if sslOpts.KeyFile != "" {
 		if err = sslLoadKey(sslCtx, sslOpts.KeyFile, sslOpts.Password,
 			sslOpts.PasswordFile); err != nil {
+			sslCtx.Close()
 			return
 		}
 	}
 
 	if sslOpts.CaFile != "" {
 		if err = sslCtx.LoadVerifyLocations(sslOpts.CaFile, ""); err != nil {
+			sslCtx.Close()
 			return
 		}
 		verifyFlags := openssl.VerifyPeer | openssl.VerifyFailIfNoPeerCert
@@ -53,6 +61,7 @@ func sslCreateContext(sslOpts opts) (sslCtx *openssl.Ctx, err error) {
 
 	if sslOpts.Ciphers != "" {
 		if err = sslCtx.SetCipherList(sslOpts.Ciphers); err != nil {
+			sslCtx.Close()
 			return
 		}
 	}
