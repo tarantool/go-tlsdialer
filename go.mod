@@ -1,9 +1,9 @@
 module github.com/tarantool/go-tlsdialer
 
 require (
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.10.0
 	github.com/tarantool/go-iproto v1.0.0
-	github.com/tarantool/go-openssl v1.2.0
+	github.com/tarantool/go-openssl v1.2.1
 	github.com/tarantool/go-tarantool/v2 v2.0.0
 )
 
