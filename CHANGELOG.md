@@ -12,9 +12,15 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ## Changed
 
-- Bump go-openssl to v1.2.1.
-
 ## Fixed
+
+## [v1.0.2] - 2025-01-27
+
+The release fixes tests on Tarantool Cluster Manager.
+
+## Changed
+
+- Bump go-openssl to v1.2.1.
 
 ## [v1.0.1] - 2025-01-23
 
