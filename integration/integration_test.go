@@ -1,4 +1,4 @@
-package tlsdialer_test
+package integration_test
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/go-tarantool/v2"
 	"github.com/tarantool/go-tarantool/v2/test_helpers"
 	"github.com/tarantool/go-tlsdialer"
+	"github.com/tarantool/go-tlsdialer/backend/openssl"
 )
 
 var server = "127.0.0.1:3013"
@@ -29,7 +30,7 @@ var dialer = tarantool.NetDialer{
 	Password: "test",
 }
 
-func serverTt(serverOpts tlsdialer.SslTestOpts,
+func serverTt(serverOpts tlsdialer.Opts,
 	auth tarantool.Auth) (test_helpers.TarantoolInstance, error) {
 	listen := ttHost + "?transport=ssl&"
 
@@ -68,6 +69,7 @@ func serverTt(serverOpts tlsdialer.SslTestOpts,
 	return test_helpers.StartTarantool(
 		test_helpers.StartOpts{
 			Dialer: tlsdialer.OpenSSLDialer{
+				Backend:         openssl.New(),
 				Address:         ttHost,
 				Auth:            auth,
 				User:            "test",
@@ -108,7 +110,7 @@ func checkTtConn(dialer tarantool.Dialer) error {
 	return nil
 }
 
-func assertConnectionTtFail(t testing.TB, serverOpts tlsdialer.SslTestOpts,
+func assertConnectionTtFail(t testing.TB, serverOpts tlsdialer.Opts,
 	dialer tlsdialer.OpenSSLDialer) {
 	t.Helper()
 
@@ -124,7 +126,7 @@ func assertConnectionTtFail(t testing.TB, serverOpts tlsdialer.SslTestOpts,
 	}
 }
 
-func assertConnectionTtOk(t testing.TB, serverOpts tlsdialer.SslTestOpts,
+func assertConnectionTtOk(t testing.TB, serverOpts tlsdialer.Opts,
 	dialer tlsdialer.OpenSSLDialer) {
 	t.Helper()
 
@@ -143,8 +145,8 @@ func assertConnectionTtOk(t testing.TB, serverOpts tlsdialer.SslTestOpts,
 type sslTest struct {
 	name       string
 	ok         bool
-	serverOpts tlsdialer.SslTestOpts
-	clientOpts tlsdialer.SslTestOpts
+	serverOpts tlsdialer.Opts
+	clientOpts tlsdialer.Opts
 }
 
 /*
@@ -167,20 +169,20 @@ var sslTests = []sslTest{
 	{
 		"key_crt_server",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 		},
-		tlsdialer.SslTestOpts{},
+		tlsdialer.Opts{},
 	},
 	{
 		"key_crt_server_and_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 		},
@@ -188,22 +190,22 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_server",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{},
+		tlsdialer.Opts{},
 	},
 	{
 		"key_crt_ca_server_key_crt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 		},
@@ -211,12 +213,12 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_server_and_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
@@ -225,12 +227,12 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_server_and_client_invalid_path_key",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "any_invalid_path",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
@@ -239,12 +241,12 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_server_and_client_invalid_path_crt",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "any_invalid_path",
 			CaFile:   "testdata/ca.crt",
@@ -253,12 +255,12 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_server_and_client_invalid_path_ca",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "any_invalid_path",
@@ -267,12 +269,12 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_server_and_client_empty_key",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/empty",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
@@ -281,12 +283,12 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_server_and_client_empty_crt",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/empty",
 			CaFile:   "testdata/ca.crt",
@@ -295,12 +297,12 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_server_and_client_empty_ca",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/empty",
@@ -309,11 +311,11 @@ var sslTests = []sslTest{
 	{
 		"key_crt_server_and_key_crt_ca_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
@@ -322,13 +324,13 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_ciphers_server_key_crt_ca_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 			Ciphers:  "ECDHE-RSA-AES256-GCM-SHA384",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
@@ -337,13 +339,13 @@ var sslTests = []sslTest{
 	{
 		"key_crt_ca_ciphers_server_and_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 			Ciphers:  "ECDHE-RSA-AES256-GCM-SHA384",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
@@ -353,13 +355,13 @@ var sslTests = []sslTest{
 	{
 		"non_equal_ciphers_client",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 			Ciphers:  "ECDHE-RSA-AES256-GCM-SHA384",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
@@ -369,12 +371,12 @@ var sslTests = []sslTest{
 	{
 		"pass_key_encrypt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.enc.key",
 			CertFile: "testdata/localhost.crt",
 			Password: "mysslpassword",
@@ -383,12 +385,12 @@ var sslTests = []sslTest{
 	{
 		"passfile_key_encrypt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:      "testdata/localhost.enc.key",
 			CertFile:     "testdata/localhost.crt",
 			PasswordFile: "testdata/passwords",
@@ -397,12 +399,12 @@ var sslTests = []sslTest{
 	{
 		"pass_and_passfile_key_encrypt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:      "testdata/localhost.enc.key",
 			CertFile:     "testdata/localhost.crt",
 			Password:     "mysslpassword",
@@ -412,12 +414,12 @@ var sslTests = []sslTest{
 	{
 		"inv_pass_and_passfile_key_encrypt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:      "testdata/localhost.enc.key",
 			CertFile:     "testdata/localhost.crt",
 			Password:     "invalidpassword",
@@ -427,12 +429,12 @@ var sslTests = []sslTest{
 	{
 		"pass_and_inv_passfile_key_encrypt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:      "testdata/localhost.enc.key",
 			CertFile:     "testdata/localhost.crt",
 			Password:     "mysslpassword",
@@ -442,12 +444,12 @@ var sslTests = []sslTest{
 	{
 		"pass_and_not_existing_passfile_key_encrypt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:      "testdata/localhost.enc.key",
 			CertFile:     "testdata/localhost.crt",
 			Password:     "mysslpassword",
@@ -457,12 +459,12 @@ var sslTests = []sslTest{
 	{
 		"inv_pass_and_inv_passfile_key_encrypt_client",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:      "testdata/localhost.enc.key",
 			CertFile:     "testdata/localhost.crt",
 			Password:     "invalidpassword",
@@ -472,12 +474,12 @@ var sslTests = []sslTest{
 	{
 		"not_existing_passfile_key_encrypt_client",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:      "testdata/localhost.enc.key",
 			CertFile:     "testdata/localhost.crt",
 			PasswordFile: "testdata/notafile",
@@ -486,12 +488,12 @@ var sslTests = []sslTest{
 	{
 		"no_pass_key_encrypt_client",
 		false,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.enc.key",
 			CertFile: "testdata/localhost.crt",
 		},
@@ -499,12 +501,12 @@ var sslTests = []sslTest{
 	{
 		"pass_key_non_encrypt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			Password: "invalidpassword",
@@ -513,12 +515,12 @@ var sslTests = []sslTest{
 	{
 		"passfile_key_non_encrypt_client",
 		true,
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:  "testdata/localhost.key",
 			CertFile: "testdata/localhost.crt",
 			CaFile:   "testdata/ca.crt",
 		},
-		tlsdialer.SslTestOpts{
+		tlsdialer.Opts{
 			KeyFile:      "testdata/localhost.key",
 			CertFile:     "testdata/localhost.crt",
 			PasswordFile: "testdata/invalidpasswords",
@@ -526,8 +528,9 @@ var sslTests = []sslTest{
 	},
 }
 
-func makeOpenSslDialer(opts tlsdialer.SslTestOpts) tlsdialer.OpenSSLDialer {
+func makeOpenSslDialer(opts tlsdialer.Opts) tlsdialer.OpenSSLDialer {
 	return tlsdialer.OpenSSLDialer{
+		Backend:         openssl.New(),
 		Address:         ttHost,
 		User:            "test",
 		Password:        "test",
@@ -564,7 +567,7 @@ func TestOpts_PapSha256Auth(t *testing.T) {
 		t.Skip("Skipping test for Tarantool without pap-sha256 support")
 	}
 
-	sslOpts := tlsdialer.SslTestOpts{
+	sslOpts := tlsdialer.Opts{
 		KeyFile:  "testdata/localhost.key",
 		CertFile: "testdata/localhost.crt",
 	}
@@ -576,6 +579,7 @@ func TestOpts_PapSha256Auth(t *testing.T) {
 	}
 
 	client := tlsdialer.OpenSSLDialer{
+		Backend:              openssl.New(),
 		Address:              ttHost,
 		Auth:                 tarantool.PapSha256Auth,
 		User:                 "test",
@@ -594,7 +598,7 @@ func TestOpts_PapSha256Auth(t *testing.T) {
 }
 
 func TestReadDeadline(t *testing.T) {
-	sslOpts := tlsdialer.SslTestOpts{
+	sslOpts := tlsdialer.Opts{
 		KeyFile:  "testdata/localhost.key",
 		CertFile: "testdata/localhost.crt",
 	}
@@ -606,6 +610,7 @@ func TestReadDeadline(t *testing.T) {
 	}
 
 	dialer := tlsdialer.OpenSSLDialer{
+		Backend:  openssl.New(),
 		Address:  ttHost,
 		User:     testDialUser,
 		Password: testDialPass,

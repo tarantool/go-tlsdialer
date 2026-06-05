@@ -1,3 +1,19 @@
+// Package tlsdialer provides a TLS dialer for go-tarantool.
+//
+// It serves as an interlayer between go-tarantool and a pluggable TLS engine.
+// OpenSSLDialer satisfies the tarantool.Dialer interface; the TLS handshake
+// itself is delegated to a Backend.
+//
+// # Backends
+//
+// The TLS engine is selected via OpenSSLDialer.Backend, which must be set — the
+// dialer links no engine itself. The cgo OpenSSL engine lives in its own
+// package, github.com/tarantool/go-tlsdialer/backend/openssl (openssl.New());
+// pass it, or any value implementing Backend, to plug in a TLS engine.
+// Because this package imports no engine, importing it never pulls in cgo: a
+// program opts into OpenSSL/cgo only by importing the openssl package itself.
+// The dialer's Ssl* fields are translated into Opts and handed to
+// the backend, so the same configuration drives every engine.
 package tlsdialer
 
 import (
@@ -10,35 +26,26 @@ import (
 
 const bufSize = 128 * 1024
 
-type openSSLDialer struct {
-	address         string
-	sslKeyFile      string
-	sslCertFile     string
-	sslCaFile       string
-	sslCiphers      string
-	sslPassword     string
-	sslPasswordFile string
+// tlsDialer is the internal tarantool.Dialer that performs the TLS dial via the
+// selected Backend and wraps the result for the go-tarantool greeting /
+// protocol / auth chain.
+type tlsDialer struct {
+	backend Backend
+	opts    Opts
+	address string
 }
 
-func (d openSSLDialer) Dial(ctx context.Context,
+func (d tlsDialer) Dial(ctx context.Context,
 	dialOpts tarantool.DialOpts) (tarantool.Conn, error) {
-	var err error
-	conn := new(ttConn)
-
 	network, address := parseAddress(d.address)
-	conn.net, conn.sslCtx, err = sslDialContext(ctx, network, address, opts{
-		KeyFile:      d.sslKeyFile,
-		CertFile:     d.sslCertFile,
-		CaFile:       d.sslCaFile,
-		Ciphers:      d.sslCiphers,
-		Password:     d.sslPassword,
-		PasswordFile: d.sslPasswordFile,
-	})
+
+	netConn, err := d.backend.DialTLS(ctx, network, address, d.opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial: %w", err)
 	}
 
-	dc := &deadlineIO{to: dialOpts.IoTimeout, c: conn.net}
+	conn := &ttConn{net: netConn}
+	dc := &deadlineIO{to: dialOpts.IoTimeout, c: netConn}
 	conn.reader = bufio.NewReaderSize(dc, bufSize)
 	conn.writer = bufio.NewWriterSize(dc, bufSize)
 
@@ -46,6 +53,10 @@ func (d openSSLDialer) Dial(ctx context.Context,
 }
 
 // OpenSSLDialer allows to use SSL transport for connection.
+//
+// The TLS engine is provided via Backend, which must be set; e.g.
+// Backend: openssl.New() after importing
+// github.com/tarantool/go-tlsdialer/backend/openssl (requires cgo).
 type OpenSSLDialer struct {
 	// Address is an address to connect.
 	// It could be specified in following ways:
@@ -76,10 +87,8 @@ type OpenSSLDialer struct {
 	// SslCiphers is a colon-separated (:) list of SSL cipher suites the connection
 	// can use.
 	//
-	// We don't provide a list of supported ciphers. This is what OpenSSL
-	// does. The only limitation is usage of TLSv1.2 (because other protocol
-	// versions don't seem to support the GOST cipher). To add additional
-	// ciphers (GOST cipher), you must configure OpenSSL.
+	// The OpenSSL backend passes this list to OpenSSL verbatim. TLSv1.2 is
+	// required because other protocol versions don't support the GOST cipher.
 	//
 	// See also
 	//
@@ -93,6 +102,12 @@ type OpenSSLDialer struct {
 	// the private SSL key file. The connection tries every line from the
 	// file as a password.
 	SslPasswordFile string
+	// Backend selects the TLS engine used for the handshake and must be set.
+	// Use openssl.New() from github.com/tarantool/go-tlsdialer/backend/openssl
+	// for the cgo OpenSSL engine, or supply any value implementing
+	// Backend to plug in a custom TLS engine. Dial returns an error if
+	// Backend is nil.
+	Backend Backend
 }
 
 // Dial makes OpenSSLDialer satisfy the Dialer interface.
@@ -102,17 +117,27 @@ func (d OpenSSLDialer) Dial(ctx context.Context,
 		d.RequiredProtocolInfo.Auth = d.Auth
 	}
 
+	be := d.Backend
+	if be == nil {
+		return nil, fmt.Errorf("OpenSSLDialer.Backend is not set: provide a " +
+			"backend such as openssl.New() from " +
+			"github.com/tarantool/go-tlsdialer/backend/openssl")
+	}
+
 	dialer := tarantool.AuthDialer{
 		Dialer: tarantool.ProtocolDialer{
 			Dialer: tarantool.GreetingDialer{
-				Dialer: openSSLDialer{
-					address:         d.Address,
-					sslKeyFile:      d.SslKeyFile,
-					sslCertFile:     d.SslCertFile,
-					sslCaFile:       d.SslCaFile,
-					sslCiphers:      d.SslCiphers,
-					sslPassword:     d.SslPassword,
-					sslPasswordFile: d.SslPasswordFile,
+				Dialer: tlsDialer{
+					backend: be,
+					address: d.Address,
+					opts: Opts{
+						KeyFile:      d.SslKeyFile,
+						CertFile:     d.SslCertFile,
+						CaFile:       d.SslCaFile,
+						Ciphers:      d.SslCiphers,
+						Password:     d.SslPassword,
+						PasswordFile: d.SslPasswordFile,
+					},
 				},
 			},
 			RequiredProtocolInfo: d.RequiredProtocolInfo,
