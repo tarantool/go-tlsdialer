@@ -5,15 +5,16 @@ import (
 	"io"
 	"net"
 
-	"github.com/tarantool/go-openssl"
 	"github.com/tarantool/go-tarantool/v2"
 )
 
+// ttConn adapts a backend's TLS net.Conn to tarantool.Conn. It is
+// engine-agnostic: the net.Conn returned by Backend.DialTLS owns all TLS
+// resources and releases them on Close.
 type ttConn struct {
 	net    net.Conn
 	reader io.Reader
 	writer writeFlusher
-	sslCtx *openssl.Ctx
 }
 
 // writeFlusher is the interface that groups the basic Write and Flush methods.
@@ -54,10 +55,7 @@ func (c *ttConn) Flush() error {
 
 // Close makes ttConn satisfy the Conn interface.
 func (c *ttConn) Close() error {
-	errConn := c.net.Close()
-	errCtx := c.sslCtx.Close()
-
-	return errors.Join(errConn, errCtx)
+	return c.net.Close()
 }
 
 // Greeting makes ttConn satisfy the Conn interface.

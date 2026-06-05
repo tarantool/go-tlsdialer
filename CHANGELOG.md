@@ -10,7 +10,22 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ## Added
 
+- Pluggable TLS engine abstraction: a `tlsdialer.Backend` interface (with
+  `DialTLS`) and a `tlsdialer.Opts` configuration type. Any TLS engine can be
+  plugged in via `OpenSSLDialer.Backend`.
+
 ## Changed
+
+- `OpenSSLDialer` no longer links OpenSSL directly; it delegates the TLS
+  handshake to a `tlsdialer.Backend`. The cgo OpenSSL engine is now the first
+  `Backend` implementation and moved to its own cgo-only sub-package
+  `github.com/tarantool/go-tlsdialer/backend/openssl` (`openssl.New`).
+- `OpenSSLDialer.Backend` must now be set explicitly (e.g. `openssl.New()`);
+  `Dial` returns an error when it is nil. The root `tlsdialer` package imports
+  no TLS engine, so it no longer pulls in cgo — a program opts into OpenSSL/cgo
+  only by importing `backend/openssl`.
+- Building the OpenSSL backend with `CGO_ENABLED=0` now fails with a readable
+  message instead of a confusing `undefined` error.
 
 ## Fixed
 

@@ -1,4 +1,4 @@
-package tlsdialer_test
+package integration_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/go-tarantool/v2"
 	"github.com/tarantool/go-tarantool/v2/test_helpers"
 	"github.com/tarantool/go-tlsdialer"
+	"github.com/tarantool/go-tlsdialer/backend/openssl"
 )
 
 func ExampleOpenSSLDialer() {
@@ -15,6 +16,7 @@ func ExampleOpenSSLDialer() {
 		Address:  "127.0.0.1:3014",
 		User:     "test",
 		Password: "test",
+		Backend:  openssl.New(),
 	}
 	opts := tarantool.Opts{
 		Timeout: 5 * time.Second,
