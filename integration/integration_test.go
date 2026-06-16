@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tarantool/go-tarantool/v2"
-	"github.com/tarantool/go-tarantool/v2/test_helpers"
+	"github.com/tarantool/go-tarantool/v3"
+	"github.com/tarantool/go-tarantool/v3/test_helpers"
 	"github.com/tarantool/go-tlsdialer"
 	"github.com/tarantool/go-tlsdialer/backend/openssl"
 )
@@ -31,7 +31,7 @@ var dialer = tarantool.NetDialer{
 }
 
 func serverTt(serverOpts tlsdialer.Opts,
-	auth tarantool.Auth) (test_helpers.TarantoolInstance, error) {
+	auth tarantool.Auth) (*test_helpers.TarantoolInstance, error) {
 	listen := ttHost + "?transport=ssl&"
 
 	key := serverOpts.KeyFile
@@ -92,7 +92,7 @@ func serverTt(serverOpts tlsdialer.Opts,
 	)
 }
 
-func serverTtStop(inst test_helpers.TarantoolInstance) {
+func serverTtStop(inst *test_helpers.TarantoolInstance) {
 	test_helpers.StopTarantoolWithCleanup(inst)
 }
 

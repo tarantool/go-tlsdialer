@@ -5,7 +5,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tarantool/v3"
 )
 
 // ttConn adapts a backend's TLS net.Conn to tarantool.Conn. It is
