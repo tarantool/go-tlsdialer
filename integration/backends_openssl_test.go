@@ -1,3 +1,5 @@
+//go:build openssl
+
 package integration_test
 
 // Registers the OpenSSL engine into the shared backendHarnesses table so the

@@ -1,3 +1,5 @@
+//go:build openssl
+
 package integration_test
 
 // OpenSSL-specific certificate/key matrix. The backend-agnostic protocol

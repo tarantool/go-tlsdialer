@@ -1,3 +1,5 @@
+//go:build openssl
+
 package integration_test
 
 import (
@@ -14,6 +16,12 @@ import (
 )
 
 var server = "127.0.0.1:3013"
+
+const ttHost = "127.0.0.1:3014"
+
+var opts = tarantool.Opts{
+	Timeout: 5 * time.Second,
+}
 
 var startOpts = test_helpers.StartOpts{
 	Dialer:       dialer,

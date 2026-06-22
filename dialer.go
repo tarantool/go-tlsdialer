@@ -90,6 +90,10 @@ type OpenSSLDialer struct {
 	// The OpenSSL backend passes this list to OpenSSL verbatim. TLSv1.2 is
 	// required because other protocol versions don't support the GOST cipher.
 	//
+	// The gostls backend parses the same syntax itself and resolves every name
+	// against its own suite registry, so an unknown name is an error instead of
+	// being silently ignored.
+	//
 	// See also
 	//
 	// * https://www.openssl.org/docs/man1.1.1/man1/ciphers.html

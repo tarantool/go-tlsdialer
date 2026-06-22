@@ -9,17 +9,29 @@ It serves as an interlayer between go-tarantool and a pluggable TLS engine
 (a `tlsdialer.Backend`).
 
 The TLS handshake is delegated to a `tlsdialer.Backend`, which must be provided.
-The cgo OpenSSL engine lives in its own, cgo-only sub-package
+Two engines ship as sub-packages: a pure-Go gostls engine
+`github.com/tarantool/go-tlsdialer/backend/gostls` (`gostls.New()`, no cgo,
+**experimental**) and a cgo OpenSSL engine
 `github.com/tarantool/go-tlsdialer/backend/openssl` (`openssl.New()`). See
 [Backends](#backends).
 
 ## Run tests
 
-To run a default set of tests:
+The test suite is split by build tag, so the default run needs neither cgo nor
+OpenSSL:
 
-```go
+```shell
+# Default: the cgo-free suite, exercised against the gostls backend.
 go test -v ./...
+
+# Add the OpenSSL backend. Requires cgo and a linkable OpenSSL; the tests
+# tagged `openssl` also start a TLS-capable Tarantool (Enterprise Edition)
+# from PATH, so Community Edition on PATH makes them fail.
+go test -tags openssl -v ./...
 ```
+
+Test files that link OpenSSL — or that need a live Tarantool EE — carry a
+`//go:build openssl` constraint; everything else runs under `CGO_ENABLED=0`.
 
 ## OpenSSLDialer
 
@@ -56,10 +68,12 @@ type OpenSSLDialer struct {
 	// SslCiphers is a colon-separated (:) list of SSL cipher suites the connection
 	// can use.
 	//
-	// We don't provide a list of supported ciphers. This is what OpenSSL
-	// does. The only limitation is usage of TLSv1.2 (because other protocol
-	// versions don't seem to support the GOST cipher). To add additional
-	// ciphers (GOST cipher), you must configure OpenSSL.
+	// The OpenSSL backend passes this list to OpenSSL verbatim. TLSv1.2 is
+	// required because other protocol versions don't support the GOST cipher.
+	//
+	// The gostls backend parses the same syntax itself and resolves every name
+	// against its own suite registry, so an unknown name is an error instead of
+	// being silently ignored.
 	//
 	// See also
 	//
@@ -84,7 +98,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tlsdialer"
 	"github.com/tarantool/go-tlsdialer/backend/openssl"
 )
@@ -128,14 +142,40 @@ delegates to whichever `tlsdialer.Backend` is set. The dialer's `Ssl*` fields ar
 translated into a `tlsdialer.Opts` value and handed to that backend, so the
 same configuration drives every engine.
 
-`Backend` is required: import the cgo OpenSSL engine and pass `openssl.New()`,
-or supply your own implementation.
+`Backend` is required. Two engines ship in-tree; pick one by importing its
+sub-package and passing its constructor, or supply your own implementation:
 
-```go
-import "github.com/tarantool/go-tlsdialer/backend/openssl"
+- **gostls** (experimental) — pure-Go TLS 1.2 client, no cgo, builds under
+  `CGO_ENABLED=0`. New and not yet production-proven; the OpenSSL backend below
+  is the conservative choice.
 
-dialer := tlsdialer.OpenSSLDialer{Address: addr, Backend: openssl.New()}
-```
+  ```go
+  import "github.com/tarantool/go-tlsdialer/backend/gostls"
+
+  dialer := tlsdialer.OpenSSLDialer{Address: addr, Backend: gostls.New()}
+  ```
+
+  The backend is named after the library it wraps,
+  [`github.com/tarantool/go-gostls`](https://github.com/tarantool/go-gostls),
+  but it is not GOST-only: it negotiates the ordinary ECDHE / DHE / RSA suites
+  with AES-GCM, AES-CBC and ChaCha20-Poly1305, *and* the GOST suites that
+  OpenSSL offers only with `gost-engine` installed and configured (GOST
+  28147-89, Kuznyechik and Magma in CTR-OMAC mode, VKO / GOST-2018 key
+  exchange). GOST suites are registered but not offered by default — name them
+  in `SslCiphers` to negotiate one.
+
+  It is not a drop-in replacement for everything OpenSSL can do. Relative to
+  the OpenSSL backend it does not support TLS 1.3, PSK suites, or the
+  Camellia / ARIA / SEED / 3DES families; TLS 1.2 is the only protocol version
+  (which is also the only version that carries the GOST suites).
+
+- **openssl** — cgo engine backed by the system OpenSSL library:
+
+  ```go
+  import "github.com/tarantool/go-tlsdialer/backend/openssl"
+
+  dialer := tlsdialer.OpenSSLDialer{Address: addr, Backend: openssl.New()}
+  ```
 
 A dialer with no `Backend` set returns an error from `Dial`. Because the root
 `tlsdialer` package imports no engine, it does not pull in cgo on its own — a
@@ -145,18 +185,18 @@ program opts into OpenSSL/cgo only by importing `backend/openssl`.
 
 The `backend/openssl` package links the system OpenSSL library through
 `github.com/tarantool/go-openssl`, so every file in it carries a `//go:build cgo`
-constraint, and so does anything that imports it. Building it with
-`CGO_ENABLED=0` compiles a single stub instead, which fails the build with a
-readable message rather than a confusing `undefined: New`:
+constraint, and so does anything that imports it. Under `CGO_ENABLED=0` that
+package fails to build on purpose, with
 
-```shell
-$ CGO_ENABLED=0 go build ./...
-# github.com/tarantool/go-tlsdialer/backend/openssl
-backend/openssl/nocgo.go:13:22: undefined: This_package_requires_CGO_ENABLED_1
+```
+undefined: This_package_requires_CGO_ENABLED_1
 ```
 
-In other words, using the OpenSSL backend requires cgo and a linkable OpenSSL
-(see [Application build](#application-build) below).
+instead of a confusing `undefined: New`. A program that needs a cgo-free build
+uses the `gostls` backend and never imports `backend/openssl`, and then
+`CGO_ENABLED=0 go build ./...` over its own packages succeeds. Using the OpenSSL
+backend requires cgo and a linkable OpenSSL (see
+[Application build](#application-build) below).
 
 ## Application build
 

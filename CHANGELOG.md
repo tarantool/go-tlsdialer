@@ -13,6 +13,18 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 - Pluggable TLS engine abstraction: a `tlsdialer.Backend` interface (with
   `DialTLS`) and a `tlsdialer.Opts` configuration type. Any TLS engine can be
   plugged in via `OpenSSLDialer.Backend`.
+- Pure-Go gostls TLS 1.2 backend in the sub-package
+  `github.com/tarantool/go-tlsdialer/backend/gostls` (`gostls.New()`), backed by
+  [`github.com/tarantool/go-gostls`](https://github.com/tarantool/go-gostls) and
+  marked **experimental** — new and not yet production-proven; the cgo OpenSSL
+  backend remains the conservative choice. It needs no cgo, builds under
+  `CGO_ENABLED=0`, translates the OpenSSL cipher-list syntax into IANA suite
+  IDs, and loads PKCS#1 / PKCS#8 (incl. encrypted PBES2 / PBKDF2-HMAC-SHA256 /
+  AES-CBC) private keys. `SslCertFile` may hold the leaf followed by
+  intermediates; the whole chain is sent, as with the OpenSSL backend. It
+  speaks the ordinary ECDHE / DHE / RSA suites with
+  AES-GCM, AES-CBC and ChaCha20-Poly1305 as well as the GOST suites; it does not
+  cover TLS 1.3, PSK, or the Camellia / ARIA / SEED / 3DES families.
 
 ## Changed
 
@@ -20,12 +32,16 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
   handshake to a `tlsdialer.Backend`. The cgo OpenSSL engine is now the first
   `Backend` implementation and moved to its own cgo-only sub-package
   `github.com/tarantool/go-tlsdialer/backend/openssl` (`openssl.New`).
-- `OpenSSLDialer.Backend` must now be set explicitly (e.g. `openssl.New()`);
-  `Dial` returns an error when it is nil. The root `tlsdialer` package imports
-  no TLS engine, so it no longer pulls in cgo — a program opts into OpenSSL/cgo
-  only by importing `backend/openssl`.
-- Building the OpenSSL backend with `CGO_ENABLED=0` now fails with a readable
-  message instead of a confusing `undefined` error.
+- `OpenSSLDialer.Backend` must now be set explicitly (e.g. `openssl.New()` or
+  `gostls.New()`); `Dial` returns an error when it is nil. The root `tlsdialer`
+  package imports no TLS engine, so it no longer pulls in cgo — a program opts
+  into OpenSSL/cgo only by importing `backend/openssl`.
+- The `backend/openssl` files carry a `//go:build cgo` constraint, so a
+  `CGO_ENABLED=0` build of that package now fails with an explicit
+  `This_package_requires_CGO_ENABLED_1` message; a cgo-free program uses the
+  `gostls` backend and never imports `backend/openssl`.
+- The OpenSSL-dependent tests moved behind a `//go:build openssl` tag, so the
+  default `go test ./...` run needs neither cgo nor a Tarantool EE binary.
 
 ## Fixed
 

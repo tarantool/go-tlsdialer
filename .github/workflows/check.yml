@@ -38,23 +38,17 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name != github.repository
     steps:
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        continue-on-error: true
+        uses: golangci/golangci-lint-action@v7
         with:
-          # The first run is for GitHub Actions error format.
+          version: v2.12.2
           args: --config=.golangci-lint.yaml
-
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          # The second run is for human-readable error format with a file name
-          # and a line number.
-          args: --out-${NO_FUTURE}format colored-line-number --config=.golangci-lint.yaml
 
   codespell:
     runs-on: ubuntu-latest

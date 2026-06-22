@@ -4,19 +4,32 @@ package integration_test
 // stands up a TLS mock-protocol server and a base dialer wired to a particular
 // TLS engine; the shared scenarios then run identically against every backend.
 //
-// The OpenSSL harness is registered in backends_openssl_test.go and added to
-// this table, so the shared scenarios run against the OpenSSL engine.
+// The pure-Go gostls harness is registered here and runs with CGO_ENABLED=0.
+// The OpenSSL harness is registered in backends_openssl_test.go (//go:build
+// openssl) and is added to the same table, so `go test -tags openssl` runs
+// every scenario against both engines.
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-iproto"
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
 	"github.com/tarantool/go-tlsdialer"
+	"github.com/tarantool/go-tlsdialer/backend/gostls"
 )
 
 // serverInstance is one running mock server plus a base dialer already wired to
@@ -32,8 +45,83 @@ type backendHarness struct {
 	newServer func(t *testing.T) serverInstance
 }
 
-// backendHarnesses is populated via init() in backends_openssl_test.go.
+// backendHarnesses is populated via init() in this file (gostls) and in
+// backends_openssl_test.go (openssl, behind -tags openssl).
 var backendHarnesses []backendHarness
+
+func init() {
+	backendHarnesses = append(backendHarnesses, backendHarness{
+		name:      "gostls",
+		newServer: newGoStlsServer,
+	})
+}
+
+// ---- gostls harness ---------------------------------------------------------
+
+func newGoStlsServer(t *testing.T) serverInstance {
+	cert, caPEM := genServerCert(t)
+	l := newTLSMockServer(t, cert)
+	caFile := writeCAFile(t, caPEM)
+	return serverInstance{
+		listener: l,
+		dialer: tlsdialer.OpenSSLDialer{
+			Address:   l.Addr().String(),
+			User:      testDialUser,
+			Password:  testDialPass,
+			SslCaFile: caFile,
+			Backend:   gostls.New(),
+		},
+	}
+}
+
+// genServerCert returns a self-signed RSA certificate valid for 127.0.0.1
+// (usable both as the server's leaf and as its own trust anchor) plus the
+// PEM-encoded certificate to feed back as the client CA file.
+func genServerCert(t *testing.T) (tls.Certificate, []byte) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "127.0.0.1"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	tlsCert := tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
+	return tlsCert, certPEM
+}
+
+// newTLSMockServer starts a crypto/tls listener presenting cert, returning the
+// listener for the Tarantool mock-protocol helpers to accept on.
+func newTLSMockServer(t *testing.T, cert tls.Certificate) net.Listener {
+	t.Helper()
+	cfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS12,
+	}
+	l, err := tls.Listen("tcp", "127.0.0.1:0", cfg)
+	require.NoError(t, err)
+	return l
+}
+
+// writeCAFile writes the CA PEM to a temp file and returns its path.
+func writeCAFile(t *testing.T, caPEM []byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "ca.crt")
+	require.NoError(t, os.WriteFile(path, caPEM, 0o600))
+	return path
+}
 
 // ---- shared scenarios -------------------------------------------------------
 
