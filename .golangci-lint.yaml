@@ -1,28 +1,27 @@
-run:
-  timeout: 3m
-
+version: "2"
 linters:
   enable:
     - errorlint
     - forbidigo
     - gocritic
     - godot
-    - goimports
     - lll
     - reassign
     - revive
-    - stylecheck
+    - staticcheck
     - testpackage
     - unconvert
-    - unused
-
-linters-settings:
-  lll:
-    line-length: 100
-    tab-width: 4
-
-issues:
-  exclude-rules:
-    - linters:
-      - lll
-      source: "\t?// *(see )?https://"
+  settings:
+    lll:
+      line-length: 100
+      tab-width: 4
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - linters:
+          - lll
+        source: "\t?// *(see )?https://"
+formatters:
+  enable:
+    - goimports

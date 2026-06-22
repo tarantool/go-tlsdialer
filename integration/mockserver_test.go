@@ -12,8 +12,6 @@ import (
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
 )
 
-const ttHost = "127.0.0.1:3014"
-
 func genSalt() [64]byte {
 	salt := [64]byte{}
 	for i := 0; i < 44; i++ {
@@ -23,10 +21,6 @@ func genSalt() [64]byte {
 }
 
 var (
-	opts = tarantool.Opts{
-		Timeout: 5 * time.Second,
-	}
-
 	testDialUser    = "test"
 	testDialPass    = "test"
 	testDialVersion = [64]byte{'t', 'e', 's', 't'}
