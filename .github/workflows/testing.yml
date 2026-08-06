@@ -92,3 +92,68 @@ jobs:
           go get github.com/mattn/goveralls
           go install github.com/mattn/goveralls
           goveralls -coverprofile=${COVERAGE_FILE} -service=github
+
+  # The build-tagged suites, which `run-tests-ee` above does not reach: it runs
+  # `go test ./...` with no tags, so everything behind `openssl` or
+  # `tarantoolee` is excluded from the build entirely.
+  #
+  # This job is separate rather than a step of `run-tests-ee` because the
+  # tarantoolee suite renders a Tarantool 3.x cluster config (TT_CONFIG, with
+  # groups/replicasets/instances) and cannot run on the 2.10/2.11 SDKs in that
+  # job's matrix.
+  #
+  # Both engines are exercised: once with CGO_ENABLED=0 (pure-Go gostls), once
+  # with cgo and `-tags openssl`, which additionally pulls in the OpenSSL-only
+  # integration tests.
+  run-tests-ee-tagged:
+    if: |
+      github.repository == 'tarantool/go-tlsdialer' &&
+      (github.event_name == 'push' ||
+        (github.event_name == 'pull_request_target' &&
+          github.event.pull_request.head.repo.full_name != github.repository &&
+          github.event.label.name == 'full-ci')) ||
+      github.event_name == 'workflow_dispatch'
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        golang:
+          - '1.24'
+          - 'stable'
+        sdk-path:
+          - 'release/linux/x86_64/3.5/'
+        sdk-version:
+          - 'sdk-gc64-3.5.1-0-r85.linux.x86_64'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Tarantool ${{ matrix.sdk-version }}
+        run: |
+          ARCHIVE_NAME=tarantool-enterprise-${{ matrix.sdk-version }}.tar.gz
+          curl -O -L https://${{ secrets.SDK_DOWNLOAD_TOKEN }}@download.tarantool.io/enterprise/${{ matrix.sdk-path }}${ARCHIVE_NAME}
+          tar -xzf ${ARCHIVE_NAME}
+          rm -f ${ARCHIVE_NAME}
+
+      - name: Setup golang for the connector and tests
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{matrix.golang}}
+
+      # env.sh puts the EE binary on PATH as `tarantool`, which is what the
+      # suite looks for by default (TARANTOOL_EE_BIN overrides it).
+      #
+      # backend/openssl is excluded on purpose: under CGO_ENABLED=0 it fails to
+      # build by design (nocgo.go), so `./...` cannot be used here.
+      - name: Run the tarantoolee suite against the pure-Go engine (no cgo)
+        run: |
+          source tarantool-enterprise/env.sh
+          CGO_ENABLED=0 go test -tags tarantoolee -v -count=1 -shuffle=on \
+            . ./backend/gostls/... ./integration/...
+
+      - name: Run the tarantoolee and OpenSSL suites with cgo
+        run: |
+          source tarantool-enterprise/env.sh
+          go test -tags "openssl tarantoolee" -v -count=1 -shuffle=on ./...
