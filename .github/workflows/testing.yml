@@ -201,3 +201,119 @@ jobs:
         run: |
           source tarantool-enterprise/env.sh
           go test -tags openssl -v -count=1 -shuffle=on ./...
+
+  # OpenSSL and the GOST engine linked statically, so the binary carries GOST
+  # with no libssl/libcrypto/gost.so at runtime. go-openssl v1.4.0 added the
+  # `openssl_gost` build tag for this and v1.4.1 made it initialize the engine,
+  # without which GOST keys and certificates fail to decode.
+  #
+  # The OpenSSL and gost-engine builds follow tarantool/go-openssl's own
+  # go-test-gost.yml, which is where this recipe comes from.
+  run-tests-ee-openssl-static-gost:
+    if: |
+      github.repository == 'tarantool/go-tlsdialer' &&
+      (github.event_name == 'push' ||
+        (github.event_name == 'pull_request_target' &&
+          github.event.pull_request.head.repo.full_name != github.repository &&
+          github.event.label.name == 'full-ci')) ||
+      github.event_name == 'workflow_dispatch'
+
+    runs-on: ubuntu-latest
+
+    env:
+      OPENSSL_VERSION: openssl-3.4.1
+      GOST_ENGINE_VERSION: v3.0.3
+      SDK_PATH: 'release/linux/x86_64/3.5/'
+      SDK_VERSION: 'sdk-gc64-3.5.1-0-r85.linux.x86_64'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup golang for the connector and tests
+        uses: actions/setup-go@v3
+        with:
+          go-version: 'stable'
+
+      - name: Cache OpenSSL static
+        id: cache-openssl
+        uses: actions/cache@v4
+        with:
+          path: /tmp/openssl-install
+          key: openssl-${{ env.OPENSSL_VERSION }}-static-v1
+
+      - name: Build OpenSSL static
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch ${{ env.OPENSSL_VERSION }} \
+            https://github.com/openssl/openssl.git /tmp/openssl-src
+          cd /tmp/openssl-src
+          ./config no-shared -fPIC --prefix=/tmp/openssl-install --openssldir=/etc/ssl
+          make -j$(nproc)
+          make install_sw
+
+      - name: Cache GOST engine static
+        id: cache-gost
+        uses: actions/cache@v4
+        with:
+          path: /tmp/gost-engine
+          key: gost-engine-${{ env.GOST_ENGINE_VERSION }}-static-v1
+
+      - name: Build GOST engine static
+        if: steps.cache-gost.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch ${{ env.GOST_ENGINE_VERSION }} --recursive \
+            https://github.com/gost-engine/engine.git /tmp/gost-engine
+          cd /tmp/gost-engine
+          sed -i 's/add_library(lib_gost_engine SHARED/add_library(lib_gost_engine STATIC/' CMakeLists.txt
+          sed -i '/install(TARGETS lib_gost_engine EXPORT/,/)/s/^/#disabled: /' CMakeLists.txt
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+                -DOPENSSL_ROOT_DIR=/tmp/openssl-install ..
+          cmake --build . --target lib_gost_engine gost_core gost_err
+
+      - name: Create gost-engine.pc
+        run: |
+          cat > /tmp/gost-engine.pc << 'PCEOF'
+          prefix=/tmp/gost-engine
+          build_dir=${prefix}/build
+
+          Name: gost-engine
+          Description: Reference implementation of GOST crypto algorithms for OpenSSL
+          Version: 3.0.3
+          Cflags: -I${prefix}
+          Libs: ${build_dir}/libgost.a ${build_dir}/libgost_core.a ${build_dir}/libgost_err.a
+          PCEOF
+
+      - name: Setup Tarantool ${{ env.SDK_VERSION }}
+        run: |
+          ARCHIVE_NAME=tarantool-enterprise-${{ env.SDK_VERSION }}.tar.gz
+          curl -O -L https://${{ secrets.SDK_DOWNLOAD_TOKEN }}@download.tarantool.io/enterprise/${{ env.SDK_PATH }}${ARCHIVE_NAME}
+          tar -xzf ${ARCHIVE_NAME}
+          rm -f ${ARCHIVE_NAME}
+
+      # TestTarantoolEE_Ping_GOST runs here: with openssl_gost it takes the
+      # statically linked engine instead of the dlopen'd one, so this is what
+      # proves GOST works in a static build against a live Tarantool.
+      - name: Run the suites against a statically linked OpenSSL + GOST engine
+        env:
+          PKG_CONFIG_PATH: /tmp/openssl-install/lib64/pkgconfig:/tmp
+          CGO_ENABLED: 1
+        run: |
+          source tarantool-enterprise/env.sh
+          go test -tags "openssl openssl_static openssl_gost" \
+            -v -count=1 -shuffle=on ./...
+
+      - name: Verify the binary has no dynamic OpenSSL or GOST dependency
+        env:
+          PKG_CONFIG_PATH: /tmp/openssl-install/lib64/pkgconfig:/tmp
+          CGO_ENABLED: 1
+        run: |
+          go test -tags "openssl openssl_static openssl_gost" \
+            -c -o /tmp/test-binary ./integration/
+          ldd /tmp/test-binary || true
+          if ldd /tmp/test-binary | grep -Ei 'libssl|libcrypto|gost'; then
+            echo "FAIL: dynamic dependency on openssl or gost found"
+            exit 1
+          fi
+          echo "OK: no dynamic dependency on openssl or gost"
