@@ -93,19 +93,18 @@ jobs:
           go install github.com/mattn/goveralls
           goveralls -coverprofile=${COVERAGE_FILE} -service=github
 
-  # The build-tagged suites, which `run-tests-ee` above does not reach: it runs
-  # `go test ./...` with no tags, so everything behind `openssl` or
-  # `tarantoolee` is excluded from the build entirely.
+  # The Tarantool EE interop suite, which `run-tests-ee` above does not reach:
+  # it uses the 2.10 and 2.11 SDKs as well, and the suite renders a Tarantool
+  # 3.x cluster config (TT_CONFIG, with groups/replicasets/instances) that 2.x
+  # cannot load, so those tests skip themselves there. This job pins 3.x so
+  # they actually run.
   #
-  # This job is separate rather than a step of `run-tests-ee` because the
-  # tarantoolee suite renders a Tarantool 3.x cluster config (TT_CONFIG, with
-  # groups/replicasets/instances) and cannot run on the 2.10/2.11 SDKs in that
-  # job's matrix.
+  # It also covers the OpenSSL engine, which stays behind the `openssl` build
+  # tag because it needs cgo: `go test ./...` with no tags leaves it out.
   #
   # Both engines are exercised: once with CGO_ENABLED=0 (pure-Go gostls), once
-  # with cgo and `-tags openssl`, which additionally pulls in the OpenSSL-only
-  # integration tests.
-  run-tests-ee-tagged:
+  # with cgo and `-tags openssl`.
+  run-tests-ee-interop:
     if: |
       github.repository == 'tarantool/go-tlsdialer' &&
       (github.event_name == 'push' ||
@@ -115,6 +114,9 @@ jobs:
       github.event_name == 'workflow_dispatch'
 
     runs-on: ubuntu-latest
+
+    env:
+      GOST_ENGINE_VERSION: v3.0.3
 
     strategy:
       fail-fast: false
@@ -143,17 +145,59 @@ jobs:
           go-version: ${{matrix.golang}}
 
       # env.sh puts the EE binary on PATH as `tarantool`, which is what the
-      # suite looks for by default (TARANTOOL_EE_BIN overrides it).
+      # suite probes (TARANTOOL_BIN overrides it). Without it the EE tests skip
+      # instead of failing, so this step is only meaningful with the SDK above.
       #
       # backend/openssl is excluded on purpose: under CGO_ENABLED=0 it fails to
       # build by design (nocgo.go), so `./...` cannot be used here.
-      - name: Run the tarantoolee suite against the pure-Go engine (no cgo)
+      - name: Run the suite against the pure-Go engine (no cgo)
         run: |
           source tarantool-enterprise/env.sh
-          CGO_ENABLED=0 go test -tags tarantoolee -v -count=1 -shuffle=on \
+          CGO_ENABLED=0 go test -v -count=1 -shuffle=on \
             . ./backend/gostls/... ./integration/...
 
-      - name: Run the tarantoolee and OpenSSL suites with cgo
+      # gost-engine as a shared library, activated through OPENSSL_CONF. This is
+      # the runtime route: go-openssl's shim calls OPENSSL_config(NULL) at init,
+      # which loads and activates whatever engine that config names — no build
+      # tag involved. Without it TestTarantoolEE_Ping_GOST skips, so the step
+      # below would run every GOST-free OpenSSL test and silently none of the
+      # GOST ones. (The statically linked route has its own job.)
+      - name: Build gost-engine as a shared library
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libssl-dev
+          git clone --depth 1 --branch ${{ env.GOST_ENGINE_VERSION }} --recursive \
+            https://github.com/gost-engine/engine.git /tmp/gost-engine
+          cmake -S /tmp/gost-engine -B /tmp/gost-engine/build \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake --build /tmp/gost-engine/build --target gost_engine -j"$(nproc)"
+          # The config is what OPENSSL_CONF will point at: load the engine we
+          # just built and make it provide default methods, so GOST cipher
+          # names and GOST PEM keys resolve.
+          cat > /tmp/gost-engine.cnf <<'CNF'
+          openssl_conf = openssl_def
+
+          [openssl_def]
+          engines = engine_section
+
+          [engine_section]
+          gost = gost_section
+
+          [gost_section]
+          engine_id = gost
+          dynamic_path = /tmp/gost-engine/build/bin/gost.so
+          default_algorithms = ALL
+          CNF
+          test -f /tmp/gost-engine/build/bin/gost.so
+
+      # OPENSSL_CONF activates the engine for the test process only: the suite
+      # drops it from its own environment at init, once go-openssl has already
+      # consumed it, so no Tarantool child inherits it. That matters — EE links
+      # its own OpenSSL with GOST built in and aborts in ENGINE_register_ciphers
+      # if a config tries to dlopen an external engine on top.
+      - name: Run the suite against the OpenSSL engine (cgo)
+        env:
+          OPENSSL_CONF: /tmp/gost-engine.cnf
         run: |
           source tarantool-enterprise/env.sh
-          go test -tags "openssl tarantoolee" -v -count=1 -shuffle=on ./...
+          go test -tags openssl -v -count=1 -shuffle=on ./...
