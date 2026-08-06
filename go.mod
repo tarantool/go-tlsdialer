@@ -6,7 +6,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-gostls v0.1.0
 	github.com/tarantool/go-iproto v1.1.0
-	github.com/tarantool/go-openssl v1.2.1
+	github.com/tarantool/go-openssl v1.4.1
 	github.com/tarantool/go-tarantool/v3 v3.0.0
 )
 
