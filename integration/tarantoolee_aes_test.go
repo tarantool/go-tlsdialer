@@ -1,5 +1,3 @@
-//go:build tarantoolee
-
 // tarantoolee_integration_test.go — end-to-end interop with a locally
 // installed Tarantool Enterprise Edition binary.
 //
@@ -14,19 +12,18 @@
 //   4. Kills the Tarantool process and lets the TempDir get cleaned up.
 //
 // Requirements:
-//   - A Tarantool Enterprise Edition binary on $PATH. The EE binary is
-//     usually named `tarantool` (same as CE); identify it via
-//     `tarantool --version` — output includes "Tarantool Enterprise".
-//     Override the binary with TARANTOOL_EE_BIN. Community edition lacks
-//     iproto TLS and will fail the handshake.
+//   - Tarantool Enterprise Edition 3.0+ as the `tarantool` on $PATH
+//     (TARANTOOL_BIN overrides it, as in go-tarantool's test_helpers). The EE
+//     binary carries the same name as CE; the edition is probed via
+//     test_helpers.IsTarantoolEE. Community Edition has no iproto TLS.
 //   - testdata/tarantool/certs populated via the openssl steps in
 //     testdata/tarantool/README.md.
 //
-// The test skips (not fails) if either requirement is missing so it is safe
-// to run against a bare checkout.
+// There is no build tag: the test skips (not fails) when a requirement is
+// missing, so it is safe to run against a bare checkout.
 //
-// Build:  go test -tags tarantoolee ./
-// Single: go test -tags tarantoolee -run TestTarantoolEE_Ping/AES128-SHA ./
+// Run:    go test -run TestTarantoolEE ./integration/
+// Single: go test -run TestTarantoolEE_Ping/AES128-SHA ./integration/
 
 package integration_test
 
@@ -43,20 +40,49 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	tarantool "github.com/tarantool/go-tarantool/v3"
+	"github.com/tarantool/go-tarantool/v3/test_helpers"
 
 	tlsdialer "github.com/tarantool/go-tlsdialer"
 	"github.com/tarantool/go-tlsdialer/backend/gostls"
 )
 
-// tarantoolEEBin is the binary name or absolute path of the Tarantool EE
-// executable. Override via TARANTOOL_EE_BIN. The EE binary is usually
-// installed as plain `tarantool` (same name as CE).
+// tarantoolEEBin is the binary name or absolute path of the Tarantool
+// executable, resolved the same way go-tarantool's test_helpers does it, so
+// the edition probed by skipUnlessTarantoolEE is the binary that gets
+// launched. The EE binary is usually installed as plain `tarantool`.
 func tarantoolEEBin() string {
-	if v := os.Getenv("TARANTOOL_EE_BIN"); v != "" {
+	if v := os.Getenv("TARANTOOL_BIN"); v != "" {
 		return v
 	}
 	return "tarantool"
+}
+
+// skipUnlessTarantoolEE skips unless the `tarantool` on PATH is Enterprise
+// Edition 3.0 or newer. Community Edition has no iproto TLS, and the configs
+// these tests render are Tarantool 3.x cluster configs (TT_CONFIG with
+// groups/replicasets/instances), which 2.x cannot load.
+func skipUnlessTarantoolEE(t *testing.T) {
+	t.Helper()
+
+	if _, err := exec.LookPath(tarantoolEEBin()); err != nil {
+		t.Skipf("tarantool binary not found (set TARANTOOL_BIN to override): %v", err)
+	}
+	isEE, err := test_helpers.IsTarantoolEE()
+	if err != nil {
+		t.Skipf("cannot determine the Tarantool edition: %v", err)
+	}
+	if !isEE {
+		t.Skip("Tarantool Enterprise Edition is required: CE has no iproto TLS")
+	}
+	old, err := test_helpers.IsTarantoolVersionLess(3, 0, 0)
+	if err != nil {
+		t.Skipf("cannot determine the Tarantool version: %v", err)
+	}
+	if old {
+		t.Skip("Tarantool 3.0+ is required: the test renders a 3.x cluster config")
+	}
 }
 
 // pingCiphers lists the suites this test exercises. These match the 24 AES
@@ -218,9 +244,7 @@ const skipDHEUnderOpenSSL3 = "DHE-RSA suites cannot be validated: OpenSSL 3 SECL
 func reservePort(t *testing.T) int {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserve port: %v", err)
-	}
+	require.NoError(t, err, "reserve port")
 	port := ln.Addr().(*net.TCPAddr).Port
 	_ = ln.Close()
 	return port
@@ -272,7 +296,22 @@ func connectAndPing(t *testing.T, dialer tarantool.Dialer, label string) {
 		t.Logf("ping OK: %s", label)
 		return
 	}
-	t.Fatalf("connect+ping (%s) did not succeed within timeout: %v", label, lastErr)
+	require.FailNowf(t, "connect+ping did not succeed within timeout",
+		"%s: %v", label, lastErr)
+}
+
+// OPENSSL_CONF is how an installed GOST engine gets activated for this
+// process: go-openssl's shim calls OPENSSL_config(NULL) from its package
+// init, before any of our code runs, so by the time this init executes
+// OpenSSL is already configured and the variable has done its job.
+//
+// It must not reach a Tarantool child, though. Tarantool EE links its own
+// OpenSSL with GOST built in, and a config that dlopen's an external
+// gost-engine on top of it aborts the process inside ENGINE_register_ciphers.
+// Dropping it here covers every child, including the instances started by
+// go-tarantool's test_helpers, which pass the environment through untouched.
+func init() {
+	_ = os.Unsetenv("OPENSSL_CONF")
 }
 
 // startTarantool writes cfgPath, launches tarantool-ee against it, and
@@ -307,7 +346,7 @@ func startTarantool(t *testing.T, cfgPath, workDir string) (*exec.Cmd, context.C
 
 	if err := cmd.Start(); err != nil {
 		cancel()
-		t.Fatalf("start tarantool-ee: %v", err)
+		require.NoError(t, err, "start tarantool-ee")
 	}
 	return cmd, cancel
 }
@@ -327,9 +366,7 @@ func (w testLogWriter) Write(p []byte) (int, error) {
 // TestTarantoolEE_Ping drives a fresh tarantool-ee instance per cipher
 // suite, connects with OpenSSLDialer, and asserts a successful Ping.
 func TestTarantoolEE_Ping(t *testing.T) {
-	if _, err := exec.LookPath(tarantoolEEBin()); err != nil {
-		t.Skipf("tarantool-ee binary not on PATH (set TARANTOOL_EE_BIN to override): %v", err)
-	}
+	skipUnlessTarantoolEE(t)
 
 	certs, ok := certPaths(t)
 	if !ok {
@@ -351,17 +388,13 @@ func TestTarantoolEE_Ping(t *testing.T) {
 			// returns a long /var/folders/... path that busts the limit. Use
 			// a short /tmp/ttee-* directory instead and clean it up manually.
 			workDir, err := os.MkdirTemp("/tmp", "ttee-")
-			if err != nil {
-				t.Fatalf("mkdtemp: %v", err)
-			}
+			require.NoError(t, err, "mkdtemp")
 			t.Cleanup(func() { _ = os.RemoveAll(workDir) })
 			port := reservePort(t)
 			cfgPath := filepath.Join(workDir, "config.yml")
 
 			cfg, err := os.Create(cfgPath)
-			if err != nil {
-				t.Fatalf("create config: %v", err)
-			}
+			require.NoError(t, err, "create config")
 			certFile, keyFile := pickCertForCipher(certs, cipher)
 			err = tarantoolConfigTmpl.Execute(cfg, struct {
 				Port     int
@@ -377,9 +410,7 @@ func TestTarantoolEE_Ping(t *testing.T) {
 				WorkDir:  workDir,
 			})
 			_ = cfg.Close()
-			if err != nil {
-				t.Fatalf("render config: %v", err)
-			}
+			require.NoError(t, err, "render config")
 
 			cmd, cancel := startTarantool(t, cfgPath, workDir)
 			t.Cleanup(func() {
@@ -389,9 +420,8 @@ func TestTarantoolEE_Ping(t *testing.T) {
 			})
 
 			addr := fmt.Sprintf("127.0.0.1:%d", port)
-			if err := waitForTCP(addr, 30*time.Second); err != nil {
-				t.Fatalf("tarantool-ee did not open %s: %v", addr, err)
-			}
+			require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
+				"tarantool-ee did not open %s", addr)
 
 			dialer := tlsdialer.OpenSSLDialer{
 				// Cert CN in testdata is "localhost", so dial the hostname

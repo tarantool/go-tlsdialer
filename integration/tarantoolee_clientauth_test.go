@@ -1,5 +1,3 @@
-//go:build tarantoolee
-
 // tarantoolee_clientauth_integration_test.go — mutual TLS (client certificate)
 // interop with a locally installed Tarantool Enterprise Edition binary.
 //
@@ -17,21 +15,22 @@
 //
 // Generate certs with: bash testdata/tarantool/certs/gen.sh
 //
-// Build / run:
+// Run:
 //
-//	go test -tags tarantoolee -run TestTarantoolEE_Ping_ClientAuth ./ -v
+//	go test -run TestTarantoolEE_Ping_ClientAuth ./integration/ -v
 
 package integration_test
 
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"text/template"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	tlsdialer "github.com/tarantool/go-tlsdialer"
 	"github.com/tarantool/go-tlsdialer/backend/gostls"
@@ -87,9 +86,7 @@ func clientCertDir(t *testing.T) string {
 // TestTarantoolEE_Ping_ClientAuth drives a Tarantool EE instance configured
 // for mutual TLS and dials with client certificates (RSA + ECDSA subtests).
 func TestTarantoolEE_Ping_ClientAuth(t *testing.T) {
-	if _, err := exec.LookPath(tarantoolEEBin()); err != nil {
-		t.Skipf("tarantool-ee binary not on PATH (set TARANTOOL_EE_BIN to override): %v", err)
-	}
+	skipUnlessTarantoolEE(t)
 
 	certs, ok := certPaths(t)
 	if !ok {
@@ -137,18 +134,14 @@ func TestTarantoolEE_Ping_ClientAuth(t *testing.T) {
 			// Use a short /tmp/ttee-* workdir to stay under the macOS Unix
 			// socket path limit (~104 bytes) that t.TempDir() busts.
 			workDir, err := os.MkdirTemp("/tmp", "ttee-")
-			if err != nil {
-				t.Fatalf("mkdtemp: %v", err)
-			}
+			require.NoError(t, err, "mkdtemp")
 			t.Cleanup(func() { _ = os.RemoveAll(workDir) })
 
 			port := reservePort(t)
 			cfgPath := filepath.Join(workDir, "config.yml")
 
 			cfg, err := os.Create(cfgPath)
-			if err != nil {
-				t.Fatalf("create config: %v", err)
-			}
+			require.NoError(t, err, "create config")
 			err = tarantoolClientAuthConfigTmpl.Execute(cfg, struct {
 				Port     int
 				Cipher   string
@@ -165,9 +158,7 @@ func TestTarantoolEE_Ping_ClientAuth(t *testing.T) {
 				WorkDir:  workDir,
 			})
 			_ = cfg.Close()
-			if err != nil {
-				t.Fatalf("render config: %v", err)
-			}
+			require.NoError(t, err, "render config")
 
 			cmd, cancel := startTarantool(t, cfgPath, workDir)
 			t.Cleanup(func() {
@@ -176,9 +167,8 @@ func TestTarantoolEE_Ping_ClientAuth(t *testing.T) {
 			})
 
 			addr := fmt.Sprintf("127.0.0.1:%d", port)
-			if err := waitForTCP(addr, 30*time.Second); err != nil {
-				t.Fatalf("tarantool-ee did not open %s: %v", addr, err)
-			}
+			require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
+				"tarantool-ee did not open %s", addr)
 
 			dialer := tlsdialer.OpenSSLDialer{
 				// Cert CN in testdata is "localhost", so dial the hostname

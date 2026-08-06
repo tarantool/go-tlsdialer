@@ -1,15 +1,12 @@
-//go:build tarantoolee && !openssl
+//go:build !openssl
 
 // tarantoolee_gost_pure_integration_test.go — GOST cipher suite interop with
 // a locally installed Tarantool Enterprise Edition binary, using the pure-Go
 // GOST TLS stack (no cgo, no gost-engine dylib).
 //
-// Build / run:
+// Run:
 //
-//	go test -v -count=1 \
-//	  -tags "tarantoolee gost" \
-//	  -run TestTarantoolEE_Ping_GOST_Pure \
-//	  ./
+//	go test -v -count=1 -run TestTarantoolEE_Ping_GOST_Pure ./integration/
 //
 // The test skips (not fails) when any of the following are absent:
 //   - Tarantool EE binary
@@ -29,10 +26,11 @@ package integration_test
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	tlsdialer "github.com/tarantool/go-tlsdialer"
 	"github.com/tarantool/go-tlsdialer/backend/gostls"
@@ -62,13 +60,11 @@ var gostPingCiphersPure = []string{
 // with the appropriate GOST server cert and exercises a Ping over each
 // pure-Go GOST cipher suite.
 //
-// This test is the pure-Go counterpart of TestTarantoolEE_Ping_GOST (cgo
-// path, build tags: tarantoolee && openssl && openssl_gost_engine && !gost).
+// This test is the pure-Go counterpart of TestTarantoolEE_Ping_GOST, which
+// takes the cgo path and therefore stays behind the openssl build tag.
 // Structural shape is kept deliberately identical to ease future maintenance.
 func TestTarantoolEE_Ping_GOST_Pure(t *testing.T) {
-	if _, err := exec.LookPath(tarantoolEEBin()); err != nil {
-		t.Skipf("tarantool-ee binary not on PATH (set TARANTOOL_EE_BIN to override): %v", err)
-	}
+	skipUnlessTarantoolEE(t)
 
 	certs, ok := certPaths(t)
 	if !ok {
@@ -83,18 +79,14 @@ func TestTarantoolEE_Ping_GOST_Pure(t *testing.T) {
 			// Use a short /tmp/ttee-* workdir to stay under the macOS Unix
 			// socket path limit (~104 bytes) that t.TempDir() busts.
 			workDir, err := os.MkdirTemp("/tmp", "ttee-")
-			if err != nil {
-				t.Fatalf("mkdtemp: %v", err)
-			}
+			require.NoError(t, err, "mkdtemp")
 			t.Cleanup(func() { _ = os.RemoveAll(workDir) })
 
 			port := reservePort(t)
 			cfgPath := filepath.Join(workDir, "config.yml")
 
 			cfg, err := os.Create(cfgPath)
-			if err != nil {
-				t.Fatalf("create config: %v", err)
-			}
+			require.NoError(t, err, "create config")
 			certFile, keyFile := pickCertForCipher(certs, cipher)
 			// Per-subtest cert existence: GOST pairs are only generated when
 			// gen.sh is run against a host that has gost-engine. Skip only the
@@ -121,9 +113,7 @@ func TestTarantoolEE_Ping_GOST_Pure(t *testing.T) {
 				WorkDir:  workDir,
 			})
 			_ = cfg.Close()
-			if err != nil {
-				t.Fatalf("render config: %v", err)
-			}
+			require.NoError(t, err, "render config")
 
 			cmd, cancel := startTarantool(t, cfgPath, workDir)
 			t.Cleanup(func() {
@@ -132,9 +122,8 @@ func TestTarantoolEE_Ping_GOST_Pure(t *testing.T) {
 			})
 
 			addr := fmt.Sprintf("127.0.0.1:%d", port)
-			if err := waitForTCP(addr, 30*time.Second); err != nil {
-				t.Fatalf("tarantool-ee did not open %s: %v", addr, err)
-			}
+			require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
+				"tarantool-ee did not open %s", addr)
 
 			dialer := tlsdialer.OpenSSLDialer{
 				Address:    fmt.Sprintf("localhost:%d", port),

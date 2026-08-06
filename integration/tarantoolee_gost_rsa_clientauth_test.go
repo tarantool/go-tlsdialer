@@ -1,4 +1,4 @@
-//go:build tarantoolee && !openssl
+//go:build !openssl
 
 // tarantoolee_gost_rsa_clientauth_integration_test.go — regression coverage
 // for the mixed-algorithm mTLS path: GOST server cert + RSA client cert under
@@ -17,31 +17,28 @@
 //
 // Keeping the test green guards against the finding silently regressing.
 //
-// Build / run:
+// Run:
 //
 //	go test -v -count=1 \
-//	  -tags "tarantoolee gost" \
-//	  -run TestTarantoolEE_Ping_GOSTServer_RSAClientAuth \
-//	  ./
+//	  -run TestTarantoolEE_Ping_GOSTServer_RSAClientAuth ./integration/
 
 package integration_test
 
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	tlsdialer "github.com/tarantool/go-tlsdialer"
 	"github.com/tarantool/go-tlsdialer/backend/gostls"
 )
 
 func TestTarantoolEE_Ping_GOSTServer_RSAClientAuth(t *testing.T) {
-	if _, err := exec.LookPath(tarantoolEEBin()); err != nil {
-		t.Skipf("tarantool-ee binary not on PATH (set TARANTOOL_EE_BIN to override): %v", err)
-	}
+	skipUnlessTarantoolEE(t)
 
 	certs, ok := certPaths(t)
 	if !ok {
@@ -65,18 +62,14 @@ func TestTarantoolEE_Ping_GOSTServer_RSAClientAuth(t *testing.T) {
 	}
 
 	workDir, err := os.MkdirTemp("/tmp", "ttee-")
-	if err != nil {
-		t.Fatalf("mkdtemp: %v", err)
-	}
+	require.NoError(t, err, "mkdtemp")
 	t.Cleanup(func() { _ = os.RemoveAll(workDir) })
 
 	port := reservePort(t)
 	cfgPath := filepath.Join(workDir, "config.yml")
 
 	cfg, err := os.Create(cfgPath)
-	if err != nil {
-		t.Fatalf("create config: %v", err)
-	}
+	require.NoError(t, err, "create config")
 
 	const cipher = "GOST2012-GOST8912-GOST8912"
 	err = tarantoolClientAuthConfigTmpl.Execute(cfg, struct {
@@ -95,9 +88,7 @@ func TestTarantoolEE_Ping_GOSTServer_RSAClientAuth(t *testing.T) {
 		WorkDir:  workDir,
 	})
 	_ = cfg.Close()
-	if err != nil {
-		t.Fatalf("render config: %v", err)
-	}
+	require.NoError(t, err, "render config")
 
 	cmd, cancel := startTarantool(t, cfgPath, workDir)
 	t.Cleanup(func() {
@@ -106,9 +97,8 @@ func TestTarantoolEE_Ping_GOSTServer_RSAClientAuth(t *testing.T) {
 	})
 
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	if err := waitForTCP(addr, 30*time.Second); err != nil {
-		t.Fatalf("tarantool-ee did not open %s: %v", addr, err)
-	}
+	require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
+		"tarantool-ee did not open %s", addr)
 
 	dialer := tlsdialer.OpenSSLDialer{
 		Address:     fmt.Sprintf("localhost:%d", port),

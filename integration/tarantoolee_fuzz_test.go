@@ -1,4 +1,4 @@
-//go:build tarantoolee && !openssl
+//go:build !openssl
 
 // FuzzRequestBatch fuzzes the full live path — dialer + connection — over every
 // cipher suite the pure-Go gostls backend can negotiate. One Tarantool EE
@@ -7,8 +7,8 @@
 // each fuzz input picks a suite and runs a decoded batch of varied iproto
 // requests over it. It skips when the EE binary or certs are absent.
 //
-//	export TARANTOOL_EE_BIN=/path/to/tarantool-ee
-//	CGO_ENABLED=0 go test -tags tarantoolee -run FuzzRequestBatch \
+//	export TARANTOOL_BIN=/path/to/tarantool-ee   # or put EE on PATH
+//	CGO_ENABLED=0 go test -run FuzzRequestBatch \
 //	    -fuzz FuzzRequestBatch -fuzztime 60s ./integration/
 
 package integration_test
@@ -29,6 +29,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	tarantool "github.com/tarantool/go-tarantool/v3"
 
 	tlsdialer "github.com/tarantool/go-tlsdialer"
@@ -439,8 +440,8 @@ func FuzzRequestBatch(f *testing.F) {
 		}
 		for i, fut := range futs {
 			if _, err := fut.Get(); err != nil && isTransportFailure(err) {
-				t.Fatalf("transport failure on batched request %d/%d over %s: %v",
-					i+1, len(futs), ep.cipher, err)
+				require.NoErrorf(t, err, "transport failure on batched request %d/%d over %s",
+					i+1, len(futs), ep.cipher)
 			}
 		}
 
@@ -468,28 +469,21 @@ func fuzzCanary(t *testing.T, conn *tarantool.Connection, cipher string) {
 	t.Helper()
 	_, err := conn.Do(tarantool.NewReplaceRequest(fuzzSpaceName).
 		Tuple([]any{fuzzCanaryKey, fuzzCanaryVal})).Get()
-	if err != nil {
-		t.Fatalf("canary replace failed over %s (connection unusable after batch): %v", cipher, err)
-	}
+	require.NoErrorf(t, err,
+		"canary replace failed over %s (connection unusable after batch)", cipher)
 	data, err := conn.Do(tarantool.NewSelectRequest(fuzzSpaceName).
 		Index("pk").
 		Iterator(tarantool.IterEq).
 		Key([]any{fuzzCanaryKey}).
 		Limit(1)).Get()
-	if err != nil {
-		t.Fatalf("canary select failed over %s: %v", cipher, err)
-	}
-	if len(data) != 1 {
-		t.Fatalf("canary select over %s returned %d rows, want 1 (response desync)",
-			cipher, len(data))
-	}
+	require.NoErrorf(t, err, "canary select failed over %s", cipher)
+	require.Lenf(t, data, 1, "canary select over %s: response desync", cipher)
+
 	tup, ok := data[0].([]any)
-	if !ok || len(tup) < 2 {
-		t.Fatalf("canary tuple malformed over %s: %#v", cipher, data[0])
-	}
-	if s, _ := tup[1].(string); s != fuzzCanaryVal {
-		t.Fatalf("canary value mismatch over %s: got %#v want %q", cipher, tup[1], fuzzCanaryVal)
-	}
+	require.Truef(t, ok && len(tup) >= 2, "canary tuple malformed over %s: %#v", cipher, data[0])
+
+	s, _ := tup[1].(string)
+	require.Equalf(t, fuzzCanaryVal, s, "canary value mismatch over %s", cipher)
 }
 
 // ---- fuzz input decoding -----------------------------------------------------

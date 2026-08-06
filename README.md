@@ -17,21 +17,29 @@ Two engines ship as sub-packages: a pure-Go gostls engine
 
 ## Run tests
 
-The test suite is split by build tag, so the default run needs neither cgo nor
-OpenSSL:
+The default run needs neither cgo nor OpenSSL:
 
 ```shell
 # Default: the cgo-free suite, exercised against the gostls backend.
 go test -v ./...
 
-# Add the OpenSSL backend. Requires cgo and a linkable OpenSSL; the tests
-# tagged `openssl` also start a TLS-capable Tarantool (Enterprise Edition)
-# from PATH, so Community Edition on PATH makes them fail.
+# Add the OpenSSL backend. Requires cgo and a linkable OpenSSL.
 go test -tags openssl -v ./...
 ```
 
-Test files that link OpenSSL — or that need a live Tarantool EE — carry a
-`//go:build openssl` constraint; everything else runs under `CGO_ENABLED=0`.
+Only the OpenSSL engine sits behind a build tag (`//go:build openssl`), because
+it needs cgo; everything else builds under `CGO_ENABLED=0`.
+
+The tests that talk to a real Tarantool Enterprise instance are not tagged.
+They probe the `tarantool` on `PATH` — `TARANTOOL_BIN` overrides it, as in
+go-tarantool's `test_helpers` — and skip unless it is Enterprise Edition 3.0 or
+newer, since Community Edition has no iproto TLS and the configs they render
+are 3.x cluster configs. Put an EE build on `PATH` and they run:
+
+```shell
+export PATH=/path/to/tarantool-enterprise:$PATH
+go test -run TestTarantoolEE -v ./integration/
+```
 
 ## OpenSSLDialer
 

@@ -1,40 +1,46 @@
-//go:build tarantoolee && openssl
+//go:build openssl
 
-// tarantoolee_gost_integration_test.go — GOST2012 cipher suite interop with a
-// locally installed Tarantool Enterprise Edition binary plus the gost-engine
-// OpenSSL provider.
+// tarantoolee_gost_integration_test.go — GOST cipher suite interop with a
+// locally installed Tarantool Enterprise Edition binary, going through
+// OpenSSL's GOST engine rather than the pure-Go stack.
 //
-// Build / run:
+// Run:
 //
 //	CGO_CFLAGS=-I/opt/homebrew/opt/openssl@3/include \
 //	CGO_LDFLAGS=-L/opt/homebrew/opt/openssl@3/lib \
 //	OPENSSL_CONF=/opt/homebrew/etc/gost/gost-engine.cnf \
-//	go test -v -count=1 -tags "tarantoolee openssl" \
+//	go test -v -count=1 -tags openssl \
 //	  -run TestTarantoolEE_Ping_GOST ./integration/
 //
 // The test skips (not fails) when any of the following are absent:
-//   - Tarantool EE binary
+//   - Tarantool Enterprise Edition 3.0+ (see skipUnlessTarantoolEE)
 //   - GOST through OpenSSL
 //   - testdata/tarantool/certs/server_gost.{crt,key}
 //
 // How GOST reaches OpenSSL
 //
-// No engine loading of ours is involved: go-openssl's shim calls
-// OPENSSL_config(NULL) at init, so an OPENSSL_CONF pointing at a gost-engine
-// config loads and activates the installed engine. The gate below asks OpenSSL
-// to resolve a GOST cipher by name, so it hardcodes no engine path and works
-// on any host where the engine is configured.
+// There is no build tag of ours for this, because go-openssl already covers
+// both ways it can happen:
+//
+//   - dynamically — its shim calls OPENSSL_config(NULL) at init, so an
+//     OPENSSL_CONF pointing at a gost-engine config loads and activates the
+//     installed engine;
+//   - statically — its own openssl_gost tag links gost-engine in and
+//     initializes it (see the static CI job).
+//
+// The gate below therefore asks OpenSSL to resolve a GOST cipher by name,
+// which succeeds either way and hardcodes no engine path.
 
 package integration_test
 
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	goopenssl "github.com/tarantool/go-openssl"
 
 	tlsdialer "github.com/tarantool/go-tlsdialer"
@@ -67,11 +73,10 @@ var gostPingCiphers = []string{
 // TestTarantoolEE_Ping_GOST launches a Tarantool EE instance configured with
 // a GOST2012 server cert and exercises a Ping over each GOST cipher suite.
 func TestTarantoolEE_Ping_GOST(t *testing.T) {
-	if _, err := exec.LookPath(tarantoolEEBin()); err != nil {
-		t.Skipf("tarantool-ee binary not on PATH (set TARANTOOL_EE_BIN to override): %v", err)
-	}
+	skipUnlessTarantoolEE(t)
+
 	// Kuznyechik only resolves once a GOST engine is registered with OpenSSL,
-	// which is what OPENSSL_CONF (or a statically linked engine) arranges.
+	// so this covers both the OPENSSL_CONF and the statically linked route.
 	if _, err := goopenssl.GetCipherByName("kuznyechik-cbc"); err != nil {
 		t.Skipf("GOST is not available through OpenSSL "+
 			"(set OPENSSL_CONF to a gost-engine config): %v", err)
@@ -98,18 +103,14 @@ func TestTarantoolEE_Ping_GOST(t *testing.T) {
 			// Use a short /tmp/ttee-* workdir to stay under the macOS Unix
 			// socket path limit (~104 bytes) that t.TempDir() busts.
 			workDir, err := os.MkdirTemp("/tmp", "ttee-")
-			if err != nil {
-				t.Fatalf("mkdtemp: %v", err)
-			}
+			require.NoError(t, err, "mkdtemp")
 			t.Cleanup(func() { _ = os.RemoveAll(workDir) })
 
 			port := reservePort(t)
 			cfgPath := filepath.Join(workDir, "config.yml")
 
 			cfg, err := os.Create(cfgPath)
-			if err != nil {
-				t.Fatalf("create config: %v", err)
-			}
+			require.NoError(t, err, "create config")
 			certFile, keyFile := pickCertForCipher(certs, cipher)
 			// Per-subtest cert existence: α/β share server_gost.* (already
 			// checked at function level); γ needs server_gost2001.*, which
@@ -137,9 +138,7 @@ func TestTarantoolEE_Ping_GOST(t *testing.T) {
 				WorkDir:  workDir,
 			})
 			_ = cfg.Close()
-			if err != nil {
-				t.Fatalf("render config: %v", err)
-			}
+			require.NoError(t, err, "render config")
 
 			cmd, cancel := startTarantool(t, cfgPath, workDir)
 			t.Cleanup(func() {
@@ -148,9 +147,8 @@ func TestTarantoolEE_Ping_GOST(t *testing.T) {
 			})
 
 			addr := fmt.Sprintf("127.0.0.1:%d", port)
-			if err := waitForTCP(addr, 30*time.Second); err != nil {
-				t.Fatalf("tarantool-ee did not open %s: %v", addr, err)
-			}
+			require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
+				"tarantool-ee did not open %s", addr)
 
 			dialer := tlsdialer.OpenSSLDialer{
 				Backend:    openssl.New(),
