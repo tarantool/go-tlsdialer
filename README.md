@@ -157,12 +157,7 @@ sub-package and passing its constructor, or supply your own implementation:
 
   The backend is named after the library it wraps,
   [`github.com/tarantool/go-gostls`](https://github.com/tarantool/go-gostls),
-  but it is not GOST-only: it negotiates the ordinary ECDHE / DHE / RSA suites
-  with AES-GCM, AES-CBC and ChaCha20-Poly1305, *and* the GOST suites that
-  OpenSSL offers only with `gost-engine` installed and configured (GOST
-  28147-89, Kuznyechik and Magma in CTR-OMAC mode, VKO / GOST-2018 key
-  exchange). GOST suites are registered but not offered by default — name them
-  in `SslCiphers` to negotiate one.
+  but it is not GOST-only — see [Cipher suites](#cipher-suites-gostls-backend).
 
   It is not a drop-in replacement for everything OpenSSL can do. Relative to
   the OpenSSL backend it does not support TLS 1.3, PSK suites, or the
@@ -180,6 +175,65 @@ sub-package and passing its constructor, or supply your own implementation:
 A dialer with no `Backend` set returns an error from `Dial`. Because the root
 `tlsdialer` package imports no engine, it does not pull in cgo on its own — a
 program opts into OpenSSL/cgo only by importing `backend/openssl`.
+
+### Cipher suites (gostls backend)
+
+The `openssl` backend supports whatever the linked OpenSSL supports, so it has
+no fixed list. The `gostls` backend has one: it registers exactly the 32 TLS 1.2
+suites below. Name them in `SslCiphers` using the OpenSSL cipher-list syntax
+(`ECDHE-RSA-AES128-GCM-SHA256:!AES128-SHA`, `DEFAULT`, `ALL`); an unknown name
+is an error rather than being silently ignored.
+
+A suite is only usable if the server offers it too, so this list has to be read
+together with the server side: Tarantool takes the same syntax in its listener's
+[`ssl_ciphers`](https://www.tarantool.io/en/doc/latest/reference/configuration/configuration_reference/#confval-uri-.params.ssl_ciphers)
+parameter.
+
+**Verified against Tarantool Enterprise** by the `tarantoolee` suite — one EE
+instance per suite, restricted to that one suite server-side, with a Ping over
+it:
+
+| Key exchange | Suites |
+|---|---|
+| ECDHE-ECDSA | `ECDHE-ECDSA-AES128-GCM-SHA256`, `ECDHE-ECDSA-AES256-GCM-SHA384`, `ECDHE-ECDSA-AES128-SHA256`, `ECDHE-ECDSA-AES256-SHA384`, `ECDHE-ECDSA-AES128-SHA`, `ECDHE-ECDSA-AES256-SHA` |
+| ECDHE-RSA | `ECDHE-RSA-AES128-GCM-SHA256`, `ECDHE-RSA-AES256-GCM-SHA384`, `ECDHE-RSA-AES128-SHA256`, `ECDHE-RSA-AES256-SHA384`, `ECDHE-RSA-AES128-SHA`, `ECDHE-RSA-AES256-SHA` |
+| RSA | `AES128-GCM-SHA256`, `AES256-GCM-SHA384`, `AES128-SHA256`, `AES256-SHA256`, `AES128-SHA`, `AES256-SHA` |
+| GOST | `GOST2001-GOST89-GOST89`, `GOST2012-GOST8912-GOST8912`, `GOST2012-KUZNYECHIK-KUZNYECHIKOMAC`, `GOST2012-MAGMA-MAGMAOMAC` |
+
+The GOST suites are the ones OpenSSL offers only with `gost-engine` installed
+and configured; here they need no cgo and no engine. They are registered but
+**not offered by default** — name one in `SslCiphers` to negotiate it. Mutual
+TLS is covered too, with RSA, ECDSA and GOST client certificates.
+
+**Registered but not verified against Tarantool:**
+
+| Suites | Why |
+|---|---|
+| `DHE-RSA-AES128-GCM-SHA256`, `DHE-RSA-AES256-GCM-SHA384`, `DHE-RSA-AES128-SHA256`, `DHE-RSA-AES256-SHA256`, `DHE-RSA-AES128-SHA`, `DHE-RSA-AES256-SHA` | Cannot be negotiated with Tarantool at all — see below. |
+| `ECDHE-RSA-CHACHA20-POLY1305`, `ECDHE-ECDSA-CHACHA20-POLY1305`, `DHE-RSA-CHACHA20-POLY1305` | Implemented (RFC 7905) but outside the Tarantool interop matrix. |
+| `IANA-GOST2012-GOST8912-GOST8912` | The IANA code point (`0xC102`) for the same suite as `GOST2012-GOST8912-GOST8912` (`0xFF85`), kept for servers that use the assigned ID. |
+
+#### Why DHE-RSA does not work with Tarantool
+
+The client is not the limitation here — the backend implements these suites, and
+the server rejects them. Finite-field DHE needs the server to supply
+Diffie-Hellman parameters, and Tarantool's listener has no knob for them: the
+[URI parameters](https://www.tarantool.io/en/doc/latest/reference/configuration/configuration_reference/#confval-uri-.params.ssl_ciphers)
+cover `ssl_ciphers`, the key, the certificate, the CA and the key password, but
+there is no `ssl_dh_params`. The server therefore falls back on OpenSSL's
+built-in DH parameters, and
+
+- since **OpenSSL 3.0** the default security level `SECLEVEL=2` rejects them as
+  too short (DH below 2048 bits), so the handshake ends in "no shared cipher";
+- since **OpenSSL 3.2** the DHE suites are gone from the default cipher list
+  altogether.
+
+The only opt-out Tarantool accepts is its own `ssl_ciphers` string, and
+appending `@SECLEVEL=0` there still fails the handshake, so there is no
+client-side or config-side workaround. Requesting a `DHE-RSA-*` suite is
+therefore an error you get at connect time, not a silent downgrade — the
+`tarantoolee` subtests for these suites skip for this reason rather than
+pretending to pass.
 
 ### CGO and the OpenSSL backend
 
