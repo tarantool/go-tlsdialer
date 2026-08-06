@@ -36,6 +36,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"text/template"
 	"time"
@@ -238,16 +239,42 @@ const skipDHEUnderOpenSSL3 = "DHE-RSA suites cannot be validated: OpenSSL 3 SECL
 	"rejects Tarantool's built-in DH parameters and Tarantool 3.x has no config key " +
 	"to supply 2048-bit params; :@SECLEVEL=0 in ssl_ciphers does not unblock it."
 
+// reservedPorts remembers every port reservePort has handed out, so two
+// parallel subtests cannot be given the same one.
+var reservedPorts = struct {
+	sync.Mutex
+	seen map[int]bool
+}{seen: map[int]bool{}}
+
 // reservePort returns a TCP port that is free at the moment of the call by
-// listening on :0 and closing immediately. There is a small race between
-// close and tarantool bind, which is acceptable for local tests.
+// listening on :0 and closing immediately.
+//
+// Closing before Tarantool binds leaves a race with the rest of the machine,
+// but the race that actually bit was inside this binary: with two dozen
+// parallel subtests the kernel readily handed the just-released ephemeral port
+// to the next caller, and the second instance died with "Address already in
+// use" while its subtest dialled the first instance and got "no shared cipher".
+// Ports are therefore handed out at most once per run.
 func reservePort(t *testing.T) int {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err, "reserve port")
-	port := ln.Addr().(*net.TCPAddr).Port
-	_ = ln.Close()
-	return port
+
+	for attempt := 0; attempt < 100; attempt++ {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err, "reserve port")
+		port := ln.Addr().(*net.TCPAddr).Port
+		_ = ln.Close()
+
+		reservedPorts.Lock()
+		fresh := !reservedPorts.seen[port]
+		reservedPorts.seen[port] = true
+		reservedPorts.Unlock()
+
+		if fresh {
+			return port
+		}
+	}
+	require.FailNow(t, "could not reserve an unused port in 100 attempts")
+	return 0
 }
 
 // waitForTCP polls addr with short TCP dials until it succeeds or timeout.
