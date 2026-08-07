@@ -10,8 +10,8 @@ package integration_test
 import (
 	"testing"
 
-	"github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/openssl"
+	"github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 )
 
 func TestOpenSslDialer_Dial_opts(t *testing.T) {

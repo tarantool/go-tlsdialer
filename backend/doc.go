@@ -12,7 +12,7 @@
 // This package holds no abstraction and no code of its own; it only namespaces
 // the engine implementations. The cgo OpenSSL engine lives in the sub-package
 //
-//	github.com/tarantool/go-tlsdialer/backend/openssl  (openssl.New)
+//	github.com/tarantool/go-tlsdialer/v2/backend/openssl  (openssl.New)
 //
 // Importing a sub-package is how a program opts into a particular TLS engine
 // (and, for the OpenSSL engine, into cgo). Additional engines are expected to

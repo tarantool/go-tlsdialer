@@ -26,7 +26,7 @@ import (
 
 	goopenssl "github.com/tarantool/go-openssl"
 
-	"github.com/tarantool/go-tlsdialer"
+	"github.com/tarantool/go-tlsdialer/v2"
 )
 
 // engine implements tlsdialer.Backend using the cgo OpenSSL engine.

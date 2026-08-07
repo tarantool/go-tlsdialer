@@ -45,8 +45,8 @@ import (
 	tarantool "github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
 
-	tlsdialer "github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/gostls"
+	tlsdialer "github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 )
 
 // tarantoolEEBin is the binary name or absolute path of the Tarantool

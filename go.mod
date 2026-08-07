@@ -1,4 +1,4 @@
-module github.com/tarantool/go-tlsdialer
+module github.com/tarantool/go-tlsdialer/v2
 
 go 1.25.0
 

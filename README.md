@@ -10,9 +10,9 @@ It serves as an interlayer between go-tarantool and a pluggable TLS engine
 
 The TLS handshake is delegated to a `tlsdialer.Backend`, which must be provided.
 Two engines ship as sub-packages: a pure-Go gostls engine
-`github.com/tarantool/go-tlsdialer/backend/gostls` (`gostls.New()`, no cgo,
+`github.com/tarantool/go-tlsdialer/v2/backend/gostls` (`gostls.New()`, no cgo,
 **experimental**) and a cgo OpenSSL engine
-`github.com/tarantool/go-tlsdialer/backend/openssl` (`openssl.New()`). See
+`github.com/tarantool/go-tlsdialer/v2/backend/openssl` (`openssl.New()`). See
 [Backends](#backends).
 
 ## Run tests
@@ -107,8 +107,8 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tarantool/v3"
-	"github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/openssl"
+	"github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 )
 
 func main() {
@@ -158,7 +158,7 @@ sub-package and passing its constructor, or supply your own implementation:
   is the conservative choice.
 
   ```go
-  import "github.com/tarantool/go-tlsdialer/backend/gostls"
+  import "github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 
   dialer := tlsdialer.OpenSSLDialer{Address: addr, Backend: gostls.New()}
   ```
@@ -175,7 +175,7 @@ sub-package and passing its constructor, or supply your own implementation:
 - **openssl** — cgo engine backed by the system OpenSSL library:
 
   ```go
-  import "github.com/tarantool/go-tlsdialer/backend/openssl"
+  import "github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 
   dialer := tlsdialer.OpenSSLDialer{Address: addr, Backend: openssl.New()}
   ```
@@ -308,7 +308,7 @@ And then build your application using the command:
    ```
 After compiling your Go application, you can run it as usual.
 
-[godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/go-tlsdialer.svg
-[godoc-url]: https://pkg.go.dev/github.com/tarantool/go-tlsdialer
+[godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/go-tlsdialer/v2.svg
+[godoc-url]: https://pkg.go.dev/github.com/tarantool/go-tlsdialer/v2
 [coverage-badge]: https://coveralls.io/repos/github/tarantool/go-tlsdialer/badge.svg?branch=master
 [coverage-url]: https://coveralls.io/github/tarantool/go-tlsdialer?branch=master
