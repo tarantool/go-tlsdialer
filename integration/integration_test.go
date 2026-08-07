@@ -76,7 +76,7 @@ func serverTt(serverOpts tlsdialer.Opts,
 
 	return test_helpers.StartTarantool(
 		test_helpers.StartOpts{
-			Dialer: tlsdialer.OpenSSLDialer{
+			Dialer: tlsdialer.TLSDialer{
 				Backend:         openssl.New(),
 				Address:         ttHost,
 				Auth:            auth,
@@ -119,7 +119,7 @@ func checkTtConn(dialer tarantool.Dialer) error {
 }
 
 func assertConnectionTtFail(t testing.TB, serverOpts tlsdialer.Opts,
-	dialer tlsdialer.OpenSSLDialer) {
+	dialer tlsdialer.TLSDialer) {
 	t.Helper()
 
 	inst, err := serverTt(serverOpts, tarantool.AutoAuth)
@@ -135,7 +135,7 @@ func assertConnectionTtFail(t testing.TB, serverOpts tlsdialer.Opts,
 }
 
 func assertConnectionTtOk(t testing.TB, serverOpts tlsdialer.Opts,
-	dialer tlsdialer.OpenSSLDialer) {
+	dialer tlsdialer.TLSDialer) {
 	t.Helper()
 
 	inst, err := serverTt(serverOpts, tarantool.AutoAuth)
@@ -536,8 +536,8 @@ var sslTests = []sslTest{
 	},
 }
 
-func makeOpenSslDialer(opts tlsdialer.Opts) tlsdialer.OpenSSLDialer {
-	return tlsdialer.OpenSSLDialer{
+func makeTLSDialer(opts tlsdialer.Opts) tlsdialer.TLSDialer {
+	return tlsdialer.TLSDialer{
 		Backend:         openssl.New(),
 		Address:         ttHost,
 		User:            "test",
@@ -553,7 +553,7 @@ func makeOpenSslDialer(opts tlsdialer.Opts) tlsdialer.OpenSSLDialer {
 
 func TestSslOpts(t *testing.T) {
 	for _, test := range sslTests {
-		dialer := makeOpenSslDialer(test.clientOpts)
+		dialer := makeTLSDialer(test.clientOpts)
 		if test.ok {
 			t.Run("ok_tt_"+test.name, func(t *testing.T) {
 				assertConnectionTtOk(t, test.serverOpts, dialer)
@@ -586,7 +586,7 @@ func TestOpts_PapSha256Auth(t *testing.T) {
 		t.Fatalf("An unexpected server error %q", err.Error())
 	}
 
-	client := tlsdialer.OpenSSLDialer{
+	client := tlsdialer.TLSDialer{
 		Backend:              openssl.New(),
 		Address:              ttHost,
 		Auth:                 tarantool.PapSha256Auth,
@@ -617,7 +617,7 @@ func TestReadDeadline(t *testing.T) {
 		t.Fatalf("An unexpected server error %q", err.Error())
 	}
 
-	dialer := tlsdialer.OpenSSLDialer{
+	dialer := tlsdialer.TLSDialer{
 		Backend:  openssl.New(),
 		Address:  ttHost,
 		User:     testDialUser,

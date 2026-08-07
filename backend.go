@@ -5,7 +5,7 @@ import (
 	"net"
 )
 
-// Opts carries the TLS configuration extracted from an OpenSSLDialer's
+// Opts carries the TLS configuration extracted from an TLSDialer's
 // Ssl* fields. It is passed to a Backend, which interprets the values using
 // whatever TLS engine it wraps.
 //
@@ -37,7 +37,7 @@ type Opts struct {
 // Backend establishes a TLS connection for the dialer. It is the swap point
 // between TLS engines (the default is the cgo OpenSSL engine in the
 // backend/openssl sub-package) and the extension point for plugging in a custom
-// TLS engine via OpenSSLDialer.Backend.
+// TLS engine via TLSDialer.Backend.
 //
 // DialTLS dials network/address, completes the TLS handshake, and returns the
 // established connection. The returned net.Conn owns all engine resources: its

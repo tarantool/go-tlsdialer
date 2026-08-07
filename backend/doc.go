@@ -4,10 +4,10 @@
 // A "backend" is a pluggable TLS engine: the thing that actually dials the
 // network address, performs the TLS handshake and returns the established
 // connection. The dialer in the root package
-// (github.com/tarantool/go-tlsdialer) owns the abstraction itself — the
+// (github.com/tarantool/go-tlsdialer/v2) owns the abstraction itself — the
 // tlsdialer.Backend interface and the tlsdialer.Opts configuration type it
 // consumes — and delegates every handshake to whichever backend is set on
-// OpenSSLDialer.Backend.
+// TLSDialer.Backend.
 //
 // This package holds no abstraction and no code of its own; it only namespaces
 // the engine implementations. The cgo OpenSSL engine lives in the sub-package

@@ -41,12 +41,12 @@ export PATH=/path/to/tarantool-enterprise:$PATH
 go test -run TestTarantoolEE -v ./integration/
 ```
 
-## OpenSSLDialer
+## TLSDialer
 
 User can create a dialer by filling the struct:
 ```go
-// OpenSSLDialer allows to use SSL transport for connection.
-type OpenSSLDialer struct {
+// TLSDialer allows to use SSL transport for connection.
+type TLSDialer struct {
 	// Address is an address to connect.
 	// It could be specified in following ways:
 	//
@@ -95,6 +95,13 @@ type OpenSSLDialer struct {
 	// the private SSL key file. The connection tries every line from the
 	// file as a password.
 	SslPasswordFile string
+	// Backend selects the TLS engine used for the handshake and must be set.
+	// Use openssl.New() from github.com/tarantool/go-tlsdialer/v2/backend/openssl
+	// for the cgo OpenSSL engine, gostls.New() from
+	// github.com/tarantool/go-tlsdialer/v2/backend/gostls for the pure-Go
+	// (experimental) engine, or supply any value implementing Backend to
+	// plug in a custom TLS engine. Dial returns an error if Backend is nil.
+	Backend Backend
 }
 ```
 To create a connection from the created dialer a `Dial` function could be used:
@@ -112,7 +119,7 @@ import (
 )
 
 func main() {
-	dialer := tlsdialer.OpenSSLDialer{
+	dialer := tlsdialer.TLSDialer{
 		Address: "127.0.0.1:3301",
 		User:    "guest",
 		Backend: openssl.New(),
@@ -145,7 +152,7 @@ func main() {
 ## Backends
 
 The TLS handshake is performed by a `tlsdialer.Backend` — an interface with a
-single `DialTLS` method. `OpenSSLDialer` does not link a TLS engine itself; it
+single `DialTLS` method. `TLSDialer` does not link a TLS engine itself; it
 delegates to whichever `tlsdialer.Backend` is set. The dialer's `Ssl*` fields are
 translated into a `tlsdialer.Opts` value and handed to that backend, so the
 same configuration drives every engine.
@@ -160,7 +167,7 @@ sub-package and passing its constructor, or supply your own implementation:
   ```go
   import "github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 
-  dialer := tlsdialer.OpenSSLDialer{Address: addr, Backend: gostls.New()}
+  dialer := tlsdialer.TLSDialer{Address: addr, Backend: gostls.New()}
   ```
 
   The backend is named after the library it wraps,
@@ -177,7 +184,7 @@ sub-package and passing its constructor, or supply your own implementation:
   ```go
   import "github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 
-  dialer := tlsdialer.OpenSSLDialer{Address: addr, Backend: openssl.New()}
+  dialer := tlsdialer.TLSDialer{Address: addr, Backend: openssl.New()}
   ```
 
 A dialer with no `Backend` set returns an error from `Dial`. Because the root

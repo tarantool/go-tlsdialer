@@ -101,7 +101,7 @@ func TestGoStlsDialer_ClientCert(t *testing.T) {
 			l := newMTLSServer(t)
 			defer l.Close()
 
-			dialer := tlsdialer.OpenSSLDialer{
+			dialer := tlsdialer.TLSDialer{
 				Address:         l.Addr().String(),
 				User:            testDialUser,
 				Password:        testDialPass,
@@ -127,7 +127,7 @@ func TestGoStlsDialer_CertWithoutKey(t *testing.T) {
 	l := newMTLSServer(t)
 	defer l.Close()
 
-	dialer := tlsdialer.OpenSSLDialer{
+	dialer := tlsdialer.TLSDialer{
 		Address:     l.Addr().String(),
 		User:        testDialUser,
 		Password:    testDialPass,

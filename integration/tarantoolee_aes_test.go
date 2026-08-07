@@ -7,7 +7,7 @@
 //      SSL iproto listener restricted to that one suite.
 //   2. Launches `tarantool-ee` against that config and waits for the TCP
 //      port to accept connections.
-//   3. Dials via OpenSSLDialer + tarantool.Connect, executes a PingRequest,
+//   3. Dials via TLSDialer + tarantool.Connect, executes a PingRequest,
 //      and asserts the round-trip succeeds.
 //   4. Kills the Tarantool process and lets the TempDir get cleaned up.
 //
@@ -391,7 +391,7 @@ func (w testLogWriter) Write(p []byte) (int, error) {
 }
 
 // TestTarantoolEE_Ping drives a fresh tarantool-ee instance per cipher
-// suite, connects with OpenSSLDialer, and asserts a successful Ping.
+// suite, connects with TLSDialer, and asserts a successful Ping.
 func TestTarantoolEE_Ping(t *testing.T) {
 	skipUnlessTarantoolEE(t)
 
@@ -450,7 +450,7 @@ func TestTarantoolEE_Ping(t *testing.T) {
 			require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
 				"tarantool-ee did not open %s", addr)
 
-			dialer := tlsdialer.OpenSSLDialer{
+			dialer := tlsdialer.TLSDialer{
 				// Cert CN in testdata is "localhost", so dial the hostname
 				// (not the IP) to make SNI + cert verification line up.
 				Address:    fmt.Sprintf("localhost:%d", port),
