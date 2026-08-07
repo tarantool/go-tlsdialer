@@ -312,7 +312,7 @@ func startFuzzEnv() (*fuzzEnv, string) {
 // fuzzConnectRetry dials the cipher on the port, retrying until the deadline.
 func fuzzConnectRetry(caFile string, port int, cipher string,
 	retry time.Duration) (*tarantool.Connection, error) {
-	dialer := tlsdialer.OpenSSLDialer{
+	dialer := tlsdialer.TLSDialer{
 		// CN is "localhost"; dial the hostname so SNI + verification line up.
 		Address:    fmt.Sprintf("localhost:%d", port),
 		User:       "test",

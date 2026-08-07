@@ -13,8 +13,8 @@ import (
 	"github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 )
 
-func ExampleOpenSSLDialer() {
-	dialer := tlsdialer.OpenSSLDialer{
+func ExampleTLSDialer() {
+	dialer := tlsdialer.TLSDialer{
 		Address:  "127.0.0.1:3014",
 		User:     "test",
 		Password: "test",

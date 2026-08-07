@@ -15,7 +15,7 @@ import (
 )
 
 // recordingBackend wraps another Backend to prove a custom Backend supplied via
-// OpenSSLDialer.Backend is actually used, and that it receives the dialer's
+// TLSDialer.Backend is actually used, and that it receives the dialer's
 // Opts.
 type recordingBackend struct {
 	delegate tlsdialer.Backend
@@ -40,7 +40,7 @@ func TestGoStlsDialer_CustomBackend(t *testing.T) {
 
 	rec := &recordingBackend{delegate: gostls.New()}
 
-	dialer := tlsdialer.OpenSSLDialer{
+	dialer := tlsdialer.TLSDialer{
 		Address:   l.Addr().String(),
 		User:      testDialUser,
 		Password:  testDialPass,

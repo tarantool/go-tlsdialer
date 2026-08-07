@@ -150,7 +150,7 @@ func TestTarantoolEE_Ping_GOST(t *testing.T) {
 			require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
 				"tarantool-ee did not open %s", addr)
 
-			dialer := tlsdialer.OpenSSLDialer{
+			dialer := tlsdialer.TLSDialer{
 				Backend:    openssl.New(),
 				Address:    fmt.Sprintf("localhost:%d", port),
 				User:       "test",

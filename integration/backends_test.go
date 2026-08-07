@@ -36,7 +36,7 @@ import (
 // trust it via the harness's backend.
 type serverInstance struct {
 	listener net.Listener
-	dialer   tlsdialer.OpenSSLDialer
+	dialer   tlsdialer.TLSDialer
 }
 
 // backendHarness creates serverInstances for a particular TLS engine.
@@ -64,7 +64,7 @@ func newGoStlsServer(t *testing.T) serverInstance {
 	caFile := writeCAFile(t, caPEM)
 	return serverInstance{
 		listener: l,
-		dialer: tlsdialer.OpenSSLDialer{
+		dialer: tlsdialer.TLSDialer{
 			Address:   l.Addr().String(),
 			User:      testDialUser,
 			Password:  testDialPass,
@@ -129,7 +129,7 @@ func writeCAFile(t *testing.T, caPEM []byte) string {
 // Tarantool protocol. mutate optionally tweaks the base dialer (e.g. Auth).
 type protoScenario struct {
 	name   string
-	mutate func(d *tlsdialer.OpenSSLDialer)
+	mutate func(d *tlsdialer.TLSDialer)
 	opts   testDialOpts
 }
 
@@ -175,7 +175,7 @@ func protoScenarios() []protoScenario {
 		},
 		{
 			name:   "pap_sha256_auth",
-			mutate: func(d *tlsdialer.OpenSSLDialer) { d.Auth = tarantool.PapSha256Auth },
+			mutate: func(d *tlsdialer.TLSDialer) { d.Auth = tarantool.PapSha256Auth },
 			opts: testDialOpts{
 				expectedProtocolInfo: papProtocol,
 				isPapSha256Auth:      true,
@@ -278,11 +278,11 @@ func TestBackends_AddressFormat(t *testing.T) {
 	}
 }
 
-// TestOpenSSLDialer_NilBackend verifies that a dialer with no Backend set fails
+// TestTLSDialer_NilBackend verifies that a dialer with no Backend set fails
 // fast with an error instead of dialing, since the dialer links no TLS engine
 // of its own.
-func TestOpenSSLDialer_NilBackend(t *testing.T) {
-	d := tlsdialer.OpenSSLDialer{Address: "127.0.0.1:0", User: "test"}
+func TestTLSDialer_NilBackend(t *testing.T) {
+	d := tlsdialer.TLSDialer{Address: "127.0.0.1:0", User: "test"}
 	conn, err := d.Dial(context.Background(), tarantool.DialOpts{})
 	require.Nil(t, conn)
 	require.ErrorContains(t, err, "Backend is not set")

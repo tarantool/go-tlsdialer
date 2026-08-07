@@ -14,6 +14,14 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ## Fixed
 
+## [v2.0.1] - 2026-07-07
+
+`OpenSSLDialer` renamed to `TLSDialer`.
+
+## Changed
+
+- `OpenSSLDialer` renamed to `TLSDialer`.
+
 ## [v2.0.0] - 2026-07-07
 
 Added a pluggable `tlsdialer.Backend` abstraction for TLS engines, plus a new

@@ -29,7 +29,7 @@ func newOpenSSLServer(t *testing.T) serverInstance {
 	})
 	return serverInstance{
 		listener: l,
-		dialer: tlsdialer.OpenSSLDialer{
+		dialer: tlsdialer.TLSDialer{
 			Address:  l.Addr().String(),
 			User:     testDialUser,
 			Password: testDialPass,

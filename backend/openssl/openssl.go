@@ -1,7 +1,7 @@
 //go:build cgo
 
 // Package openssl provides the cgo OpenSSL TLS engine for the go-tlsdialer
-// OpenSSLDialer.
+// TLSDialer.
 //
 // The engine links the system OpenSSL library through
 // github.com/tarantool/go-openssl and therefore requires cgo. Its files carry a
@@ -13,7 +13,7 @@
 // The dialer links no engine itself, so importing this package is how a program
 // opts into OpenSSL/cgo. Pass New() on the dialer's Backend field:
 //
-//	d := tlsdialer.OpenSSLDialer{Address: addr, Backend: openssl.New()}
+//	d := tlsdialer.TLSDialer{Address: addr, Backend: openssl.New()}
 package openssl
 
 import (
@@ -33,10 +33,10 @@ import (
 type engine struct{}
 
 // New returns a tlsdialer.Backend backed by the system OpenSSL library. It
-// requires cgo and a linkable OpenSSL. Set it on OpenSSLDialer.Backend to use
+// requires cgo and a linkable OpenSSL. Set it on TLSDialer.Backend to use
 // the cgo OpenSSL engine:
 //
-//	d := tlsdialer.OpenSSLDialer{Address: addr, Backend: openssl.New()}
+//	d := tlsdialer.TLSDialer{Address: addr, Backend: openssl.New()}
 func New() tlsdialer.Backend { return engine{} }
 
 // DialTLS dials and performs the TLS handshake using OpenSSL. The returned

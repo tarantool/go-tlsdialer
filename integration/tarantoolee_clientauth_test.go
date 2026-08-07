@@ -3,7 +3,7 @@
 //
 // TestTarantoolEE_Ping_ClientAuth launches a Tarantool EE instance with
 // ssl_ca_file set (so Tarantool requires and verifies a client cert) and
-// dials using OpenSSLDialer with SslCertFile + SslKeyFile. Two subtests cover
+// dials using TLSDialer with SslCertFile + SslKeyFile. Two subtests cover
 // RSA and ECDSA client key types; the server cert is the RSA pair in both
 // subtests (the focus is on the client-auth flow, not the server key type).
 //
@@ -170,7 +170,7 @@ func TestTarantoolEE_Ping_ClientAuth(t *testing.T) {
 			require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
 				"tarantool-ee did not open %s", addr)
 
-			dialer := tlsdialer.OpenSSLDialer{
+			dialer := tlsdialer.TLSDialer{
 				// Cert CN in testdata is "localhost", so dial the hostname
 				// (not the IP) to make SNI + cert verification line up.
 				Address:     fmt.Sprintf("localhost:%d", port),

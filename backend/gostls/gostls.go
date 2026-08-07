@@ -1,5 +1,5 @@
 // Package gostls provides the pure-Go gostls TLS 1.2 engine for the
-// go-tlsdialer OpenSSLDialer.
+// go-tlsdialer TLSDialer.
 //
 // Experimental: this backend is new and not yet battle-tested in production.
 // Its behaviour and the underlying github.com/tarantool/go-gostls library may
@@ -17,7 +17,7 @@
 //		gostls    "github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 //	)
 //
-//	d := tlsdialer.OpenSSLDialer{Address: addr, Backend: gostls.New()}
+//	d := tlsdialer.TLSDialer{Address: addr, Backend: gostls.New()}
 package gostls
 
 import (
@@ -37,7 +37,7 @@ import (
 type engine struct{}
 
 // New returns a tlsdialer.Backend backed by the pure-Go gostls TLS 1.2 client.
-// It needs no cgo. Set it on OpenSSLDialer.Backend to opt into the gostls engine.
+// It needs no cgo. Set it on TLSDialer.Backend to opt into the gostls engine.
 //
 // Experimental: see the package doc — this backend is not yet production-proven.
 func New() tlsdialer.Backend { return engine{} }

@@ -14,14 +14,14 @@ import (
 	"github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 )
 
-func TestOpenSslDialer_Dial_opts(t *testing.T) {
+func TestTLSDialer_Dial_opts(t *testing.T) {
 	for _, test := range sslTests {
 		t.Run(test.name, func(t *testing.T) {
 			l := createSslListener(t, test.serverOpts)
 			defer l.Close()
 			addr := l.Addr().String()
 
-			dialer := tlsdialer.OpenSSLDialer{
+			dialer := tlsdialer.TLSDialer{
 				Backend:         openssl.New(),
 				Address:         addr,
 				User:            testDialUser,
