@@ -32,8 +32,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	tlsdialer "github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/gostls"
+	tlsdialer "github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 )
 
 // gostPingCiphersPure is the set of GOST cipher suites exercised by

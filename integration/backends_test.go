@@ -28,8 +28,8 @@ import (
 	"github.com/tarantool/go-iproto"
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
-	"github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/gostls"
+	"github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 )
 
 // serverInstance is one running mock server plus a base dialer already wired to

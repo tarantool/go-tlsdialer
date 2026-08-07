@@ -13,8 +13,8 @@
 // dialer's Backend field to use it:
 //
 //	import (
-//		tlsdialer "github.com/tarantool/go-tlsdialer"
-//		gostls    "github.com/tarantool/go-tlsdialer/backend/gostls"
+//		tlsdialer "github.com/tarantool/go-tlsdialer/v2"
+//		gostls    "github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 //	)
 //
 //	d := tlsdialer.OpenSSLDialer{Address: addr, Backend: gostls.New()}
@@ -30,7 +30,7 @@ import (
 
 	"github.com/tarantool/go-gostls"
 
-	"github.com/tarantool/go-tlsdialer"
+	"github.com/tarantool/go-tlsdialer/v2"
 )
 
 // engine implements tlsdialer.Backend using the pure-Go gostls TLS 1.2 client.

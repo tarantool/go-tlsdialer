@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 	tarantool "github.com/tarantool/go-tarantool/v3"
 
-	tlsdialer "github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/gostls"
+	tlsdialer "github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 )
 
 const (

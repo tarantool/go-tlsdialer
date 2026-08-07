@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/openssl"
+	"github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 )
 
 func init() {

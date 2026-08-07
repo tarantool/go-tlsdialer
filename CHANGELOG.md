@@ -10,6 +10,18 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ## Added
 
+## Changed
+
+## Fixed
+
+## [v2.0.0] - 2026-07-07
+
+Added a pluggable `tlsdialer.Backend` abstraction for TLS engines, plus a new
+pure-Go `gostls` backend (no cgo, experimental) built on `go-gostls`,
+supporting TLS 1.2 with both GOST and standard cipher suites.
+
+## Added
+
 - Pluggable TLS engine abstraction: a `tlsdialer.Backend` interface (with
   `DialTLS`) and a `tlsdialer.Opts` configuration type. Any TLS engine can be
   plugged in via `OpenSSLDialer.Backend`.
@@ -42,8 +54,6 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
   `gostls` backend and never imports `backend/openssl`.
 - The OpenSSL-dependent tests moved behind a `//go:build openssl` tag, so the
   default `go test ./...` run needs neither cgo nor a Tarantool EE binary.
-
-## Fixed
 
 ## [v1.0.2] - 2025-01-27
 

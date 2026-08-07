@@ -9,8 +9,8 @@ import (
 
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
-	"github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/openssl"
+	"github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 )
 
 func ExampleOpenSSLDialer() {

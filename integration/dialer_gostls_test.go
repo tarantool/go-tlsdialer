@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/go-tlsdialer"
-	"github.com/tarantool/go-tlsdialer/backend/gostls"
+	"github.com/tarantool/go-tlsdialer/v2"
+	"github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 )
 
 // recordingBackend wraps another Backend to prove a custom Backend supplied via
