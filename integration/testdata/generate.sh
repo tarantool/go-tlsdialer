@@ -36,3 +36,5 @@ unusedpassword1
 EOF
 
 openssl rsa -aes256 -passout "pass:${password}" -in localhost.key -out localhost.enc.key
+# The legacy encrypted PEM (Proc-Type / DEK-Info) that OpenSSL 1.x wrote by default.
+openssl rsa -aes256 -traditional -passout "pass:${password}" -in localhost.key -out localhost.legacy.key

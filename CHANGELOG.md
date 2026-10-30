@@ -28,6 +28,15 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 - The `gostls` backend verifies a GOST-signed server certificate against a GOST
   CA in `SslCaFile`; it used to fail for want of GOST roots.
+- The `gostls` backend loads the private key forms the `openssl` backend loads:
+  legacy encrypted PEM (`Proc-Type: 4,ENCRYPTED` with `DEK-Info`, as written by
+  `openssl genrsa -aes256 -traditional` and by OpenSSL 1.x by default), SEC 1
+  `EC PRIVATE KEY` keys, plain or encrypted, PKCS#8 encrypted with any PBKDF2
+  PRF from HMAC-SHA-1 to HMAC-SHA-512 and with DES-EDE3-CBC or AES-192-CBC, and
+  the PKCS#12 Triple DES schemes (`openssl pkcs8 -topk8 -v1 PBE-SHA1-3DES`). A
+  key file may hold other PEM blocks before the key, such as a certificate or
+  `EC PARAMETERS`. Keys encrypted with scrypt, Camellia or ARIA, which OpenSSL
+  also loads, are still refused, with an error naming the scheme.
 
 ## [v2.0.1] - 2026-07-07
 

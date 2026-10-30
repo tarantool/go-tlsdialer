@@ -5,8 +5,10 @@ package integration_test
 // crypto/tls server that requires and verifies a client certificate.
 //
 // Runs with CGO_ENABLED=0. The keys live in testdata/ and were produced by the
-// OpenSSL CLI (see testdata/generate.sh), so the encrypted-PKCS#8 case decodes a
-// real OpenSSL-encrypted key (PBES2 / PBKDF2-HMAC-SHA256 / AES-256-CBC).
+// OpenSSL CLI (see testdata/generate.sh), so the encrypted cases decode real
+// OpenSSL-encrypted keys: PKCS#8 (PBES2 / PBKDF2-HMAC-SHA256 / AES-256-CBC) and
+// legacy PEM (DEK-Info: AES-256-CBC). With -tags openssl the client-certificate
+// cases run against the OpenSSL backend too.
 
 import (
 	"crypto/tls"
@@ -73,6 +75,22 @@ func TestGoStlsDialer_ClientCert(t *testing.T) {
 			passwordFile: "testdata/passwords",
 		},
 		{
+			name:     "encrypted_legacy_password",
+			keyFile:  "testdata/localhost.legacy.key",
+			password: sslKeyPassword,
+		},
+		{
+			name:         "encrypted_legacy_passwordfile",
+			keyFile:      "testdata/localhost.legacy.key",
+			passwordFile: "testdata/passwords",
+		},
+		{
+			name:     "encrypted_legacy_wrong_password",
+			keyFile:  "testdata/localhost.legacy.key",
+			password: "not-the-password",
+			wantErr:  true,
+		},
+		{
 			name:     "encrypted_pkcs8_wrong_password",
 			keyFile:  "testdata/localhost.enc.key",
 			password: "not-the-password",
@@ -96,28 +114,32 @@ func TestGoStlsDialer_ClientCert(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			l := newMTLSServer(t)
-			defer l.Close()
+	// Every backend gets the same cases: the expectations are the OpenSSL
+	// backend's, which -tags openssl checks.
+	for _, be := range dialBackends {
+		for _, tc := range cases {
+			t.Run(be.name+"/"+tc.name, func(t *testing.T) {
+				l := newMTLSServer(t)
+				defer l.Close()
 
-			dialer := tlsdialer.TLSDialer{
-				Address:         l.Addr().String(),
-				User:            testDialUser,
-				Password:        testDialPass,
-				SslCaFile:       "testdata/ca.crt",
-				SslCertFile:     "testdata/localhost.crt",
-				SslKeyFile:      tc.keyFile,
-				SslPassword:     tc.password,
-				SslPasswordFile: tc.passwordFile,
-				Backend:         gostls.New(),
-			}
+				dialer := tlsdialer.TLSDialer{
+					Address:         l.Addr().String(),
+					User:            testDialUser,
+					Password:        testDialPass,
+					SslCaFile:       "testdata/ca.crt",
+					SslCertFile:     "testdata/localhost.crt",
+					SslKeyFile:      tc.keyFile,
+					SslPassword:     tc.password,
+					SslPasswordFile: tc.passwordFile,
+					Backend:         be.backend,
+				}
 
-			testDialer(t, l, dialer, testDialOpts{
-				wantErr:              tc.wantErr,
-				expectedProtocolInfo: idResponseTyped.Clone(),
+				testDialer(t, l, dialer, testDialOpts{
+					wantErr:              tc.wantErr,
+					expectedProtocolInfo: idResponseTyped.Clone(),
+				})
 			})
-		})
+		}
 	}
 }
 
