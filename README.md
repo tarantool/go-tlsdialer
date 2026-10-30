@@ -72,6 +72,8 @@ type TLSDialer struct {
 	// SslCertFile is a path to an SSL certificate file.
 	SslCertFile string
 	// SslCaFile is a path to a trusted certificate authorities (CA) file.
+	// Without it the server's certificate chain is not verified, only its
+	// host name.
 	SslCaFile string
 	// SslCiphers is a colon-separated (:) list of SSL cipher suites the connection
 	// can use.
@@ -190,6 +192,22 @@ sub-package and passing its constructor, or supply your own implementation:
 A dialer with no `Backend` set returns an error from `Dial`. Because the root
 `tlsdialer` package imports no engine, it does not pull in cgo on its own — a
 program opts into OpenSSL/cgo only by importing `backend/openssl`.
+
+### Server certificate verification
+
+Both backends check the server certificate the way the OpenSSL backend always
+has, so switching between them does not change which servers a client accepts:
+
+- Without `SslCaFile` the certificate chain is **not verified**: a self-signed,
+  expired or otherwise untrusted certificate is accepted, and only the host
+  name is checked. Set `SslCaFile` to authenticate the server.
+- With `SslCaFile` the chain must lead to a certificate in that file, through
+  intermediates the server sends; the system trust store is not consulted.
+- The host from `Address` must match the certificate, by OpenSSL's rules
+  (`X509_check_host` / `X509_check_ip`): a DNS name is matched against the DNS
+  subjectAltNames, or against the subject CommonName if there are none, so a
+  plain `openssl req -x509 -subj /CN=localhost` certificate works for
+  `localhost`; an IP address is matched against the IP subjectAltNames only.
 
 ### Cipher suites (gostls backend)
 

@@ -83,6 +83,8 @@ type TLSDialer struct {
 	// SslCertFile is a path to an SSL certificate file.
 	SslCertFile string
 	// SslCaFile is a path to a trusted certificate authorities (CA) file.
+	// Without it the server's certificate chain is not verified, only its
+	// host name.
 	SslCaFile string
 	// SslCiphers is a colon-separated (:) list of SSL cipher suites the connection
 	// can use.
