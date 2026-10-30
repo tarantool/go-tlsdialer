@@ -188,3 +188,79 @@ func TestTarantoolEE_Ping_ClientAuth(t *testing.T) {
 		})
 	}
 }
+
+// TestTarantoolEE_ClientAuth_NoClientCert dials a Tarantool EE listener that
+// requires a client certificate (ssl_ca_file set) without one, with every
+// backend. Tarantool refuses the handshake with a handshake_failure alert,
+// and each backend has to report that alert — see requireRefusedWithAlert.
+// The dial repeats because what gostls used to report instead was partly a
+// race.
+func TestTarantoolEE_ClientAuth_NoClientCert(t *testing.T) {
+	skipUnlessTarantoolEE(t)
+
+	certs, ok := certPaths(t)
+	if !ok {
+		t.Skip("testdata/tarantool/certs not populated; run testdata/tarantool/certs/gen.sh")
+	}
+
+	const cipher = "ECDHE-RSA-AES256-GCM-SHA384"
+
+	// Use a short /tmp/ttee-* workdir to stay under the macOS Unix socket
+	// path limit (~104 bytes) that t.TempDir() busts.
+	workDir, err := os.MkdirTemp("/tmp", "ttee-")
+	require.NoError(t, err, "mkdtemp")
+	t.Cleanup(func() { _ = os.RemoveAll(workDir) })
+
+	port := reservePort(t)
+	cfgPath := filepath.Join(workDir, "config.yml")
+
+	cfg, err := os.Create(cfgPath)
+	require.NoError(t, err, "create config")
+	err = tarantoolClientAuthConfigTmpl.Execute(cfg, struct {
+		Port     int
+		Cipher   string
+		CertFile string
+		KeyFile  string
+		CaFile   string
+		WorkDir  string
+	}{
+		Port:     port,
+		Cipher:   cipher,
+		CertFile: certs.RSACert,
+		KeyFile:  certs.RSAKey,
+		CaFile:   certs.CaFile,
+		WorkDir:  workDir,
+	})
+	_ = cfg.Close()
+	require.NoError(t, err, "render config")
+
+	cmd, cancel := startTarantool(t, cfgPath, workDir)
+	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Wait()
+	})
+
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	require.NoErrorf(t, waitForTCP(addr, 30*time.Second),
+		"tarantool-ee did not open %s", addr)
+
+	for _, be := range dialBackends {
+		t.Run(be.name, func(t *testing.T) {
+			dialer := tlsdialer.TLSDialer{
+				Address:    fmt.Sprintf("localhost:%d", port),
+				User:       "test",
+				Password:   "test",
+				SslCaFile:  certs.CaFile,
+				SslCiphers: cipher,
+				Backend:    be.backend,
+			}
+			for i := range 10 {
+				err := dialOnce(t, dialer)
+				if i == 0 {
+					t.Logf("%s: %v", be.name, err)
+				}
+				requireRefusedWithAlert(t, be.name, err, "handshake failure")
+			}
+		})
+	}
+}
