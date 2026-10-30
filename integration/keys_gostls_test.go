@@ -17,8 +17,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/go-tarantool/v3"
+	"github.com/tarantool/go-tarantool/v3/test_helpers"
 	"github.com/tarantool/go-tlsdialer/v2"
 	"github.com/tarantool/go-tlsdialer/v2/backend/gostls"
 )
@@ -200,4 +203,93 @@ func TestGoStlsDialer_CertWithoutKey(t *testing.T) {
 		wantErr:     true,
 		expectedErr: "SslKeyFile",
 	})
+}
+
+// TestBackends_ClientCertRequired dials a mutual-TLS server without a client
+// certificate, for every backend. The server refuses the handshake with an
+// alert as soon as it reads the empty Certificate message and closes the
+// connection, and the error has to say so.
+//
+// The gostls backend used to fail with "expected ChangeCipherSpec, got
+// content type 21" here, and now and then with a broken pipe from writing the
+// rest of its flight into the closed connection; the dial repeats because the
+// second was a race.
+func TestBackends_ClientCertRequired(t *testing.T) {
+	l := newMTLSServer(t)
+	defer l.Close()
+
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				// The handshake fails on this side too; closing right after
+				// is what a real server does.
+				if tlsConn, ok := conn.(*tls.Conn); ok {
+					_ = tlsConn.Handshake()
+				}
+				_ = conn.Close()
+			}()
+		}
+	}()
+
+	for _, be := range dialBackends {
+		t.Run(be.name, func(t *testing.T) {
+			dialer := tlsdialer.TLSDialer{
+				Address:   l.Addr().String(),
+				User:      testDialUser,
+				Password:  testDialPass,
+				SslCaFile: "testdata/ca.crt",
+				Backend:   be.backend,
+			}
+			for i := range 10 {
+				err := dialOnce(t, dialer)
+				if i == 0 {
+					t.Logf("%s: %v", be.name, err)
+				}
+				// Which alert crypto/tls sends here depends on the Go
+				// release, so any is accepted, as long as it is reported.
+				requireRefusedWithAlert(t, be.name, err, "")
+			}
+		})
+	}
+}
+
+// dialOnce dials once and returns the error, closing the connection if there
+// is one.
+func dialOnce(t *testing.T, dialer tlsdialer.TLSDialer) error {
+	t.Helper()
+
+	ctx, cancel := test_helpers.GetConnectContext()
+	defer cancel()
+
+	conn, err := dialer.Dial(ctx, tarantool.DialOpts{IoTimeout: 2 * time.Second})
+	if err == nil {
+		_ = conn.Close()
+	}
+	return err
+}
+
+// requireRefusedWithAlert checks that err reports a TLS alert from the server,
+// the way the named backend reports one: gostls in crypto/tls's shape, a
+// "remote error" *net.OpError ("remote error: tls: handshake failure"), and
+// OpenSSL as "ssl/tls alert handshake failure". alert, if set, is the
+// description the error must name.
+func requireRefusedWithAlert(t *testing.T, backend string, err error, alert string) {
+	t.Helper()
+
+	require.Error(t, err)
+	switch backend {
+	case "gostls":
+		var opErr *net.OpError
+		require.ErrorAs(t, err, &opErr)
+		require.Equal(t, "remote error", opErr.Op)
+		require.ErrorContains(t, err, "remote error: tls: "+alert)
+	case "openssl":
+		require.ErrorContains(t, err, "ssl/tls alert "+alert)
+	default:
+		t.Fatalf("no expectation for backend %q", backend)
+	}
 }
