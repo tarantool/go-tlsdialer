@@ -8,9 +8,15 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ## [Unreleased]
 
-## Added
+## [v2.1.0] - 2026-10-30
 
-## Changed
+Brings the `gostls` backend to the behavior of the `openssl` backend: it now
+authenticates the server and loads the private keys and password files the same
+way, so switching backends does not change which servers a client reaches. The
+go-gostls dependency is bumped to `v0.1.1`, which reports a handshake the server
+refuses as `crypto/tls` does.
+
+### Changed
 
 - Bump go-gostls to `v0.1.1`.
 
@@ -26,7 +32,7 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
   `SslCaFile` this is deliberately weaker than before; set it to authenticate
   the server, with either backend.
 
-## Fixed
+### Fixed
 
 - The `gostls` backend reports the alert a server refuses the handshake with,
   as `remote error: tls: handshake failure` (a `*net.OpError` with `Op`
