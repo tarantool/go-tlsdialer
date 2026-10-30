@@ -18,6 +18,12 @@
 //	)
 //
 //	d := tlsdialer.TLSDialer{Address: addr, Backend: gostls.New()}
+//
+// The server certificate is checked by the OpenSSL backend's rules rather than
+// crypto/x509's: without SslCaFile the chain is not verified, only the host
+// name; with it the chain must lead to a certificate in that file; and the host
+// name is matched as X509_check_host matches it, falling back to the subject
+// CommonName when the certificate has no DNS subjectAltName.
 package gostls
 
 import (
@@ -47,17 +53,21 @@ func New() tlsdialer.Backend { return engine{} }
 func (engine) DialTLS(
 	ctx context.Context, network, address string, o tlsdialer.Opts,
 ) (net.Conn, error) {
-	caPEMs, err := buildCAPEMs(o.CaFile)
+	host, _, _ := net.SplitHostPort(address)
+
+	verifier, err := newPeerVerifier(host, o.CaFile)
 	if err != nil {
-		return nil, fmt.Errorf("gostls backend: CA PEMs: %w", err)
+		return nil, fmt.Errorf("gostls backend: %w", err)
 	}
 
 	cfg := &gostls.Config{
-		RootCAPEMs: caPEMs,
-	}
-
-	if host, _, splitErr := net.SplitHostPort(address); splitErr == nil && host != "" {
-		cfg.ServerName = host
+		ServerName: host,
+		// The server certificate is checked by verifier, by the OpenSSL
+		// backend's rules — see peerVerifier. gostls's own verification
+		// would also check the chain without SslCaFile, against the system
+		// roots, and would match the host name by crypto/x509's rules.
+		InsecureSkipVerify:    true,
+		VerifyPeerCertificate: verifier.verify,
 	}
 
 	if o.Ciphers != "" {
@@ -100,37 +110,6 @@ func (engine) DialTLS(
 
 	dialer := &gostls.Dialer{Config: cfg}
 	return dialer.DialContext(ctx, network, address)
-}
-
-// buildCAPEMs loads a CA certificate file and returns the raw PEM-encoded bytes
-// for each CERTIFICATE block. Returns (nil, nil) if caFile is empty (the
-// backend then uses the system root pool). Errors if no CERTIFICATE blocks are
-// found.
-func buildCAPEMs(caFile string) ([][]byte, error) {
-	if caFile == "" {
-		return nil, nil
-	}
-	data, err := os.ReadFile(caFile)
-	if err != nil {
-		return nil, fmt.Errorf("read SslCaFile %s: %w", caFile, err)
-	}
-	var pems [][]byte
-	rest := data
-	for {
-		var block *pem.Block
-		block, rest = pem.Decode(rest)
-		if block == nil {
-			break
-		}
-		if block.Type != "CERTIFICATE" {
-			continue
-		}
-		pems = append(pems, pem.EncodeToMemory(block))
-	}
-	if len(pems) == 0 {
-		return nil, fmt.Errorf("SslCaFile %s: no CERTIFICATE blocks found", caFile)
-	}
-	return pems, nil
 }
 
 // buildCertChain loads the client certificate chain from a PEM file and returns

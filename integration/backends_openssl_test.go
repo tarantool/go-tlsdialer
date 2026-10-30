@@ -20,6 +20,7 @@ func init() {
 		name:      "openssl",
 		newServer: newOpenSSLServer,
 	})
+	dialBackends = append(dialBackends, dialBackend{name: "openssl", backend: openssl.New()})
 }
 
 func newOpenSSLServer(t *testing.T) serverInstance {

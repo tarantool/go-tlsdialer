@@ -12,7 +12,22 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ## Changed
 
+- The `gostls` backend checks the server certificate the way the `openssl`
+  backend does. Without `SslCaFile` it no longer verifies the chain against the
+  system roots, so a self-signed or otherwise untrusted server certificate is
+  accepted, as with `openssl`; only the host name is checked. With
+  `SslCaFile` the chain is verified against that file, as before. The host name
+  is matched by OpenSSL's rules (`X509_check_host` / `X509_check_ip`) instead of
+  `crypto/x509`'s, which among other things falls back to the subject
+  CommonName when the certificate has no DNS subjectAltName. A mismatch fails
+  with `host validation error`, the `openssl` backend's message. Without
+  `SslCaFile` this is deliberately weaker than before; set it to authenticate
+  the server, with either backend.
+
 ## Fixed
+
+- The `gostls` backend verifies a GOST-signed server certificate against a GOST
+  CA in `SslCaFile`; it used to fail for want of GOST roots.
 
 ## [v2.0.1] - 2026-07-07
 
