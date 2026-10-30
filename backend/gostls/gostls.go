@@ -29,6 +29,7 @@ package gostls
 import (
 	"context"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -87,13 +88,16 @@ func (engine) DialTLS(
 			return nil, fmt.Errorf("gostls backend: SslCertFile is set but SslKeyFile is empty")
 		}
 
-		passwords, err := buildPasswordList(o.Password, o.PasswordFile)
-		if err != nil {
-			return nil, fmt.Errorf("gostls backend: read SslPasswordFile: %w", err)
-		}
+		passwords, passwordFileErr := buildPasswordList(o.Password, o.PasswordFile)
 
 		privKey, err := loadPrivateKey(o.KeyFile, passwords)
 		if err != nil {
+			// As with the OpenSSL backend, a password file that cannot be
+			// read only matters when the key needed it.
+			if passwordFileErr != nil &&
+				(errors.Is(err, errNoPassword) || errors.Is(err, errWrongPassword)) {
+				return nil, fmt.Errorf("gostls backend: %w", passwordFileErr)
+			}
 			return nil, err
 		}
 
@@ -141,23 +145,30 @@ func buildCertChain(certFile string) ([][]byte, error) {
 	return chain, nil
 }
 
-// buildPasswordList assembles the candidate password list: the inline password
-// first, then each non-empty line of the password file.
+// buildPasswordList assembles the candidate password list the way the OpenSSL
+// backend does: the inline password first, then each line of the password
+// file with surrounding whitespace trimmed; empty lines are left out.
+//
+// A password file that cannot be read is reported as an error alongside the
+// passwords there are, not instead of them: the OpenSSL backend only fails on
+// it when no password opens the key, so an unencrypted key, or one SslPassword
+// opens, still loads.
 func buildPasswordList(inline, filePath string) ([]string, error) {
 	var passwords []string
 	if inline != "" {
 		passwords = append(passwords, inline)
 	}
-	if filePath != "" {
-		raw, err := os.ReadFile(filePath)
-		if err != nil {
-			return nil, fmt.Errorf("read SslPasswordFile %s: %w", filePath, err)
-		}
-		for _, line := range strings.Split(string(raw), "\n") {
-			line = strings.TrimRight(line, "\r")
-			if line != "" {
-				passwords = append(passwords, line)
-			}
+	if filePath == "" {
+		return passwords, nil
+	}
+
+	raw, err := os.ReadFile(filePath)
+	if err != nil {
+		return passwords, fmt.Errorf("read SslPasswordFile %s: %w", filePath, err)
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			passwords = append(passwords, line)
 		}
 	}
 	return passwords, nil

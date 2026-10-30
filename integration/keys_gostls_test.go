@@ -15,6 +15,7 @@ import (
 	"crypto/x509"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,12 +50,20 @@ func newMTLSServer(t *testing.T) net.Listener {
 }
 
 func TestGoStlsDialer_ClientCert(t *testing.T) {
+	// The right password padded with whitespace, which is trimmed, after an
+	// empty line, which is skipped. Written here rather than kept in testdata,
+	// where the trailing whitespace and the CR would not survive a patch.
+	whitespacePasswords := filepath.Join(t.TempDir(), "passwords")
+	require.NoError(t, os.WriteFile(whitespacePasswords,
+		[]byte("unusedpassword\n\n \t"+sslKeyPassword+"  \r\n"), 0o600))
+
 	cases := []struct {
 		name         string
 		keyFile      string
 		password     string
 		passwordFile string
 		wantErr      bool
+		expectedErr  string
 	}{
 		{
 			name:    "pkcs8_plain",
@@ -73,6 +82,33 @@ func TestGoStlsDialer_ClientCert(t *testing.T) {
 			name:         "encrypted_pkcs8_passwordfile",
 			keyFile:      "testdata/localhost.enc.key",
 			passwordFile: "testdata/passwords",
+		},
+		{
+			name:         "encrypted_pkcs8_passwordfile_whitespace",
+			keyFile:      "testdata/localhost.enc.key",
+			passwordFile: whitespacePasswords,
+		},
+		{
+			// An unreadable password file is not an error for a key that
+			// needs no password...
+			name:         "plain_key_missing_passwordfile",
+			keyFile:      "testdata/localhost.key",
+			passwordFile: "testdata/does-not-exist.passwords",
+		},
+		{
+			// ...or for one the inline password opens...
+			name:         "encrypted_pkcs8_password_missing_passwordfile",
+			keyFile:      "testdata/localhost.enc.key",
+			password:     sslKeyPassword,
+			passwordFile: "testdata/does-not-exist.passwords",
+		},
+		{
+			// ...and is the error otherwise.
+			name:         "encrypted_pkcs8_missing_passwordfile",
+			keyFile:      "testdata/localhost.enc.key",
+			passwordFile: "testdata/does-not-exist.passwords",
+			wantErr:      true,
+			expectedErr:  "no such file or directory",
 		},
 		{
 			name:     "encrypted_legacy_password",
@@ -136,6 +172,7 @@ func TestGoStlsDialer_ClientCert(t *testing.T) {
 
 				testDialer(t, l, dialer, testDialOpts{
 					wantErr:              tc.wantErr,
+					expectedErr:          tc.expectedErr,
 					expectedProtocolInfo: idResponseTyped.Clone(),
 				})
 			})

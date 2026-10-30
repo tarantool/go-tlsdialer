@@ -37,6 +37,10 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
   key file may hold other PEM blocks before the key, such as a certificate or
   `EC PARAMETERS`. Keys encrypted with scrypt, Camellia or ARIA, which OpenSSL
   also loads, are still refused, with an error naming the scheme.
+- The `gostls` backend reads `SslPasswordFile` like the `openssl` backend:
+  whitespace around each password is trimmed, and a password file that cannot
+  be read is only an error when the key needs a password that `SslPassword`
+  does not provide.
 
 ## [v2.0.1] - 2026-07-07
 
