@@ -29,8 +29,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tarantool/go-gostcrypto v0.1.0 h1:sGjZil1nfXzxvBU4TOIZErTXcvCuCLH/pZnwfXr9uaY=
 github.com/tarantool/go-gostcrypto v0.1.0/go.mod h1:oieRliQHLNWjZ5qrpIamIFNHJ3j7dEvU4evBr6HeEFc=
-github.com/tarantool/go-gostls v0.1.0 h1:f9aTi8hdqc9ZTKO6ktjQAEg/PQAKw/ARY14CmqMCxXs=
-github.com/tarantool/go-gostls v0.1.0/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
+github.com/tarantool/go-gostls v0.1.1-0.20261030150657-066acb823e5a h1:kAWAbNIBfpRs0+wubDjNhOJ+Vgzhs+HfpdBOMNWjTTQ=
+github.com/tarantool/go-gostls v0.1.1-0.20261030150657-066acb823e5a/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
 github.com/tarantool/go-iproto v1.1.0 h1:HULVOIHsiehI+FnHfM7wMDntuzUddO09DKqu2WnFQ5A=
 github.com/tarantool/go-iproto v1.1.0/go.mod h1:LNCtdyZxojUed8SbOiYHoc3v9NvaZTB7p96hUySMlIo=
 github.com/tarantool/go-openssl v1.4.1 h1:SqYKZj7rSjTCyMHo1g6+1HNw1T/afmhWFEVwF57kPVo=
