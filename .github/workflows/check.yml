@@ -14,22 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@master
 
-      - name: Setup Tarantool
-        uses: tarantool/setup-tarantool@v3
-        with:
-          tarantool-version: '3.5'
-
-      - name: Setup tt
-        run: |
-          curl -L https://tarantool.io/release/3/installer.sh | sudo bash
-          sudo apt install -y tt
-          tt version
-
+      # luacheck needs neither Tarantool nor tt: .luacheckrc declares the
+      # globals of Tarantool itself.
       - name: Setup luacheck
-        run: tt rocks install luacheck 0.25.0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends luarocks
+          sudo luarocks install luacheck 0.25.0
 
       - name: Run luacheck
-        run: ./.rocks/bin/luacheck .
+        run: luacheck .
 
   golangci-lint:
     runs-on: ubuntu-latest

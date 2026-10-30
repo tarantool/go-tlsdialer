@@ -12,8 +12,7 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
 
 ## Changed
 
-- Bump go-gostls to `v0.1.1-0.20261030150657-066acb823e5a`, its master after
-  v0.1.0.
+- Bump go-gostls to `v0.1.1`.
 
 - The `gostls` backend checks the server certificate the way the `openssl`
   backend does. Without `SslCaFile` it no longer verifies the chain against the
@@ -35,7 +34,7 @@ Versioning](http://semver.org/spec/v2.0.0.html) except to the first release.
   `tls: expected ChangeCipherSpec, got content type 21` — the error a
   mutual-TLS listener produced for a client without a certificate. It no
   longer fails now and then with `write: broken pipe` in that case either.
-  Both come with go-gostls `v0.1.1-0.20261030150657-066acb823e5a`.
+  Both come with go-gostls `v0.1.1`.
 - The `gostls` backend verifies a GOST-signed server certificate against a GOST
   CA in `SslCaFile`; it used to fail for want of GOST roots.
 - The `gostls` backend loads the private key forms the `openssl` backend loads:
